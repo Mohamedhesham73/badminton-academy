@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Academy Attendance</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>" />
+</head>
+<body>
+
+<!-- Decorations -->
+<div class="shuttle-deco tl">🏸</div>
+<div class="shuttle-deco br">🏸</div>
+
+<!-- ═══════════════════════════════════════
+     LOGIN PAGE
+═══════════════════════════════════════ -->
+<div class="page" id="page-login">
+  <div class="login-page">
+    <div class="login-logo">🏸 SMASH<span>IN</span></div>
+    <div class="login-sub">BADMINTON ACADEMY · ATTENDANCE SYSTEM</div>
+    <div class="login-card">
+      <div class="input-group">
+        <label>EMAIL</label>
+        <input class="input-field" type="email" id="login-email" placeholder="coach@academy.com" autocomplete="email" />
+      </div>
+      <div class="input-group">
+        <label>PASSWORD</label>
+        <input class="input-field" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <div class="error-msg" id="login-error"></div>
+      <button class="btn btn-green" onclick="doLogin()">Sign In →</button>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:700;letter-spacing:1px;">DEMO ACCOUNTS</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.8;">
+          Coach: <code style="color:var(--green)">ahmed@academy.com</code> / <code style="color:var(--green)">1234</code><br/>
+          Admin: <code style="color:var(--yellow)">admin@academy.com</code> / <code style="color:var(--yellow)">admin123</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     COACH PAGE
+═══════════════════════════════════════ -->
+<div class="page" id="page-coach">
+  <div class="header">
+    <div class="header-logo">🏸 <span>SMASH</span>IN</div>
+    <div class="header-user">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--white);" id="coach-name-header">Coach</div>
+        <div style="font-size:11px;color:var(--text-muted);">Coach</div>
+      </div>
+      <div class="avatar" id="coach-avatar">CO</div>
+      <button class="sign-out" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="page-content">
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Sessions</div>
+        <div class="value"><span id="coach-days">0</span><span style="font-size:16px;opacity:0.5;">/<span id="coach-sessions">12</span></span></div>
+        <div class="progress-bar" style="margin-top:8px;">
+          <div class="progress-fill" id="coach-progress" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Base Salary</div>
+        <div class="value money" id="coach-salary">0 EGP</div>
+      </div>
+    </div>
+
+    <div class="court-divider"></div>
+
+    <!-- Check-in Area -->
+    <div class="checkin-section">
+      <div id="demo-panel"></div>
+      <div class="section-label" style="margin-bottom:14px;">Today's Check-In</div>
+      <div id="checkin-area">
+        <div class="checkin-time">
+          <div id="live-clock" class="checkin-clock">--:--:--</div>
+          <div id="live-date" class="checkin-date-str"></div>
+        </div>
+        <button class="btn btn-disabled" disabled>Loading...</button>
+      </div>
+    </div>
+
+    <div class="court-divider"></div>
+
+    <!-- Attendance History -->
+    <div class="section-label">This Month's Attendance</div>
+    <div id="coach-history"></div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     ADMIN PAGE
+═══════════════════════════════════════ -->
+<div class="page" id="page-admin">
+  <div class="header">
+    <div class="header-logo">🏸 <span>SMASH</span>IN</div>
+    <div class="header-user">
+      <div style="font-size:13px;font-weight:700;color:var(--yellow);">Admin</div>
+      <div class="avatar gold">Mido</div>
+      <button class="sign-out" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="page-content">
+
+    <!-- Month Selector -->
+    <div class="month-bar">
+      <button class="btn btn-outline btn-sm" style="width:auto;" onclick="changeAdminMonth(-1)">← Prev</button>
+      <div class="month-label" id="admin-month-label">April 2026</div>
+      <button class="btn btn-outline btn-sm" style="width:auto;" onclick="changeAdminMonth(1)">Next →</button>
+    </div>
+
+    <!-- Admin Summary -->
+    <div class="admin-summary">
+      <div class="admin-stat">
+        <div class="val" id="admin-total-sessions">0</div>
+        <div class="lbl">Sessions</div>
+      </div>
+      <div class="admin-stat">
+        <div class="val" style="font-size:14px;" id="admin-total-salary">0</div>
+        <div class="lbl">Net Salary (EGP)</div>
+      </div>
+      <div class="admin-stat">
+        <div class="val" style="color:var(--red);font-size:14px;" id="admin-total-deductions">0</div>
+        <div class="lbl">Deductions (EGP)</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchAdminTab('overview')">Coach Overview</div>
+      <div class="tab" onclick="switchAdminTab('log')">Full Log</div>
+    </div>
+
+    <!-- Tab Content -->
+    <div id="admin-tab-content"></div>
+
+  </div>
+</div>
+
+<!-- Scripts (order matters) -->
+<script src="js/data.js"></script>
+<script src="js/coach.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
