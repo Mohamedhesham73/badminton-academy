@@ -6,6 +6,14 @@ function showPage(id) {
   if (pg) pg.classList.add('active');
 }
 
+function launchShuttle() {
+  const el = document.createElement('div');
+  el.className = 'shuttle-fly';
+  el.textContent = '🏸';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2000);
+}
+
 function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const pw = document.getElementById('login-password').value;
@@ -20,6 +28,7 @@ function doLogin() {
   }
 
   errEl.style.display = 'none';
+  launchShuttle();
 
   if (user.isAdmin) {
     showPage('page-admin');
@@ -37,7 +46,6 @@ function doLogout() {
   document.getElementById('login-password').value = '';
 }
 
-// Allow Enter key on login
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('login-password').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
@@ -46,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') document.getElementById('login-password').focus();
   });
 
-  // Restore session
   const user = restoreSession();
   if (user) {
     if (user.isAdmin) {

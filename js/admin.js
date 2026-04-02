@@ -34,6 +34,7 @@ function renderAdminTab(tab) {
   const content = document.getElementById('admin-tab-content');
   if (tab === 'overview') renderOverviewTab(content);
   else if (tab === 'log') renderLogTab(content);
+  else if (tab === 'leaderboard') renderLeaderboardTab(content);
 }
 
 function renderOverviewTab(container) {
@@ -46,7 +47,7 @@ function renderOverviewTab(container) {
       <div class="coach-row fade-in">
         <div class="coach-row-header">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div class="avatar ${isGold ? 'gold' : ''}">${initials(u.name)}</div>
+            <div class="avatar ${isGold ? 'gold' : ''}" style="cursor:default;" title="${u.name}">${initials(u.name)}</div>
             <div>
               <div class="coach-name">${u.name}</div>
               <div class="coach-meta">${u.sessionRate.toFixed(1)} EGP/session · ${u.email}</div>
@@ -77,7 +78,6 @@ function renderOverviewTab(container) {
 }
 
 function renderLogTab(container) {
-  // Get all records for this month
   const monthRecords = attendance.filter(a => getMonthKey(a.date) === adminMonthKey);
 
   if (monthRecords.length === 0) {
@@ -85,14 +85,12 @@ function renderLogTab(container) {
     return;
   }
 
-  // Group by date
   const byDate = {};
   monthRecords.forEach(r => {
     if (!byDate[r.date]) byDate[r.date] = [];
     byDate[r.date].push(r);
   });
 
-  // Sort dates newest first
   const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
   container.innerHTML = sortedDates.map(date => {
@@ -130,7 +128,6 @@ function renderLogTab(container) {
 
     return `
       <div style="margin:0 16px 16px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
-        <!-- Day Header -->
         <div style="background:rgba(0,200,150,0.08);border-bottom:1px solid rgba(0,200,150,0.15);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--green);">📅 ${dayLabel}</div>
@@ -138,12 +135,54 @@ function renderLogTab(container) {
           </div>
           <span class="badge badge-green">${totalPresent} / ${USERS.filter(u => !u.isAdmin).length}</span>
         </div>
-        <!-- Coach rows -->
-        <div style="background:rgba(255,255,255,0.02);">
-          ${rows}
-        </div>
+        <div style="background:rgba(255,255,255,0.02);">${rows}</div>
       </div>`;
   }).join('');
+}
+
+function renderLeaderboardTab(container) {
+  const coaches = USERS.filter(u => !u.isAdmin);
+
+  const stats = coaches.map(u => {
+    const s = calcMonthlySummary(u.id, adminMonthKey);
+    const totalLateMinutes = s.records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
+    const ontimeSessions = s.records.filter(r => r.lateMinutes === 0).length;
+    return { u, s, totalLateMinutes, ontimeSessions };
+  });
+
+  // Sort by on time sessions desc, then by late minutes asc
+  const ranked = [...stats].sort((a, b) => b.ontimeSessions - a.ontimeSessions || a.totalLateMinutes - b.totalLateMinutes);
+
+  // Most late
+  const mostLate = [...stats].sort((a, b) => b.totalLateMinutes - a.totalLateMinutes)[0];
+
+  const medals = ['🥇', '🥈', '🥉'];
+
+  container.innerHTML = `
+    <div style="padding:0 16px 16px;">
+      <div style="margin-bottom:16px;">
+        ${ranked.map((item, i) => {
+          const isTop = i === 0 && item.ontimeSessions > 0;
+          const isMostLate = mostLate && item.u.id === mostLate.u.id && mostLate.totalLateMinutes > 0;
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:8px;background:${isTop ? 'rgba(0,200,150,0.08)' : 'rgba(255,255,255,0.03)'};border:1px solid ${isTop ? 'rgba(0,200,150,0.2)' : 'rgba(255,255,255,0.07)'};border-radius:var(--radius-sm);">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="font-size:24px;">${medals[i] || '🏅'}</div>
+                <div class="avatar ${item.u.sessionRate > 400 ? 'gold' : ''}">${initials(item.u.name)}</div>
+                <div>
+                  <div style="font-size:14px;font-weight:800;">${item.u.name} ${isMostLate ? '<span style="font-size:11px;background:rgba(255,77,109,0.15);color:var(--red);padding:2px 6px;border-radius:6px;">😴 Most Late</span>' : ''}</div>
+                  <div style="font-size:12px;color:var(--text-muted);">${item.ontimeSessions} on-time · ${item.totalLateMinutes}m total late</div>
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--green);">${item.s.daysPresent} sessions</div>
+                ${item.s.totalDeductions > 0 ? `<div style="font-size:11px;color:var(--red);">-${item.s.totalDeductions.toFixed(1)} EGP</div>` : '<div style="font-size:11px;color:var(--green);">No deductions 🎉</div>'}
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function adminRemoveEntry(userId, date) {

@@ -14,6 +14,99 @@ function to12h(hour, minute) {
   return h + ':' + m + ' ' + ampm;
 }
 
+// ─── QUOTES ───
+const QUOTES = [
+  "You're here. That's already half the battle. 💪",
+  "Champions train, losers complain. 🏆",
+  "Another day, another session. Let's get it! 🔥",
+  "The court doesn't care about excuses. 🏸",
+  "Show up. Every. Single. Time. 👊",
+  "Legends never miss a session. 👑",
+  "Early bird gets the shuttlecock. 🐦",
+  "Your future self will thank you. ✨",
+  "Pain is temporary, glory is forever. 😤",
+  "You came. You're already winning. 🎉",
+];
+
+function getDailyQuote() {
+  const idx = new Date().getDate() % QUOTES.length;
+  return QUOTES[idx];
+}
+
+// ─── CONFETTI ───
+function launchConfetti() {
+  const colors = ['#00C896', '#FFE135', '#ff4d6d', '#ffffff', '#00a8ff'];
+  for (let i = 0; i < 80; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.style.cssText = `
+        position:fixed;
+        top:-10px;
+        left:${Math.random() * 100}vw;
+        width:${6 + Math.random() * 8}px;
+        height:${6 + Math.random() * 8}px;
+        background:${colors[Math.floor(Math.random() * colors.length)]};
+        border-radius:${Math.random() > 0.5 ? '50%' : '2px'};
+        z-index:9999;
+        pointer-events:none;
+        animation:confettiFall ${1.5 + Math.random() * 2}s ease-in forwards;
+        transform:rotate(${Math.random() * 360}deg);
+      `;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }, i * 30);
+  }
+}
+
+// ─── SOUNDS ───
+function playSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+
+    if (type === 'ontime') {
+      osc.frequency.setValueAtTime(523, ctx.currentTime);
+      osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
+    } else if (type === 'late') {
+      osc.frequency.setValueAtTime(300, ctx.currentTime);
+      osc.frequency.setValueAtTime(250, ctx.currentTime + 0.2);
+    } else if (type === 'superlate') {
+      osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.setValueAtTime(150, ctx.currentTime + 0.15);
+      osc.frequency.setValueAtTime(100, ctx.currentTime + 0.3);
+    }
+
+    osc.type = 'sine';
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+  } catch(e) {}
+}
+
+// ─── STREAK ───
+function getStreak(userId) {
+  const records = attendance
+    .filter(a => a.userId === userId)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  if (records.length === 0) return 0;
+
+  let streak = 1;
+  for (let i = 1; i < records.length; i++) {
+    const prev = new Date(records[i-1].date + 'T00:00:00');
+    const curr = new Date(records[i].date + 'T00:00:00');
+    const diff = (prev - curr) / (1000 * 60 * 60 * 24);
+    if (diff <= 7) streak++;
+    else break;
+  }
+  return streak;
+}
+
 function renderCoachPage() {
   const u = currentUser;
   const monthKey = getCurrentMonthKey();
@@ -28,6 +121,17 @@ function renderCoachPage() {
 
   const pct = Math.min(100, (summary.daysPresent / CONFIG.sessionsPerMonth) * 100);
   document.getElementById('coach-progress').style.width = pct + '%';
+
+  // Daily quote
+  const quoteEl = document.getElementById('daily-quote');
+  if (quoteEl) quoteEl.textContent = getDailyQuote();
+
+  // Streak
+  const streakEl = document.getElementById('coach-streak');
+  if (streakEl) {
+    const streak = getStreak(u.id);
+    streakEl.textContent = streak;
+  }
 
   renderDemoPanel();
   renderCheckinArea();
@@ -61,15 +165,12 @@ function setDemoTime(hour, minute) {
   const dateStr = todayStr();
   attendance = attendance.filter(a => !(a.userId === currentUser.id && a.date === dateStr));
   saveAttendance(attendance);
-
   const d = new Date();
   d.setHours(hour, minute, 0, 0);
   demoTime = d.getTime();
-
   renderDemoPanel();
   renderCheckinArea();
   updateClock();
-
   const monthKey = getCurrentMonthKey();
   const summary = calcMonthlySummary(currentUser.id, monthKey);
   document.getElementById('coach-days').textContent = summary.daysPresent;
@@ -94,6 +195,19 @@ function resetDemo() {
   renderCoachHistory(currentUser.id, monthKey);
 }
 
+function getClockColor(now) {
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const totalMins = h * 60 + m;
+  const openMins = 16 * 60;
+  const startMins = 17 * 60;
+  if (totalMins < openMins) return 'var(--text-muted)';
+  if (totalMins < startMins - 15) return 'var(--green)';
+  if (totalMins < startMins) return 'var(--yellow)';
+  if (totalMins < startMins + 30) return 'var(--orange)';
+  return 'var(--red)';
+}
+
 function updateClock() {
   const now = demoTime ? new Date(demoTime) : new Date();
   const raw = now.getHours();
@@ -102,9 +216,22 @@ function updateClock() {
   const s = demoTime ? '00' : String(now.getSeconds()).padStart(2,'0');
   const ampm = raw >= 12 ? 'PM' : 'AM';
   const el = document.getElementById('live-clock');
-  if (el) el.textContent = h + ':' + m + ':' + s + ' ' + ampm;
+  if (el) {
+    el.textContent = h + ':' + m + ':' + s + ' ' + ampm;
+    el.style.color = getClockColor(now);
+  }
   const dateEl = document.getElementById('live-date');
   if (dateEl) dateEl.textContent = now.toLocaleDateString('en-EG', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function getCountdownText(now) {
+  const totalMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
+  const diff = startMins - totalMins;
+  if (diff <= 0) return null;
+  if (diff >= 60) return `Session starts in ${Math.floor(diff/60)}h ${diff%60}m ⏳`;
+  if (diff === 1) return `Session starts in 1 minute! 😱`;
+  return `Session starts in ${diff} minutes ⏳`;
 }
 
 function renderCheckinArea() {
@@ -160,12 +287,16 @@ function renderCheckinArea() {
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
   const lateBy = Math.max(0, nowMins - startMins);
+  const countdown = getCountdownText(now);
+
+  const shakeClass = (!demoTime && startMins - nowMins <= 5 && startMins - nowMins > 0) ? 'shake-btn' : '';
 
   area.innerHTML = `
     <div class="checkin-time">
       <div id="live-clock" class="checkin-clock">--:--:--</div>
       <div id="live-date" class="checkin-date-str"></div>
     </div>
+    ${countdown ? `<div style="text-align:center;margin-bottom:10px;"><span class="badge badge-yellow" style="background:rgba(255,225,53,0.15);color:var(--yellow);">${countdown}</span></div>` : ''}
     ${lateBy > 0 ? `
       <div style="text-align:center;margin-bottom:12px;">
         <span class="${lateBy >= 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeduction(lateBy).toFixed(1)} EGP deduction</span>
@@ -173,7 +304,7 @@ function renderCheckinArea() {
       <div style="text-align:center;margin-bottom:12px;">
         <span class="badge badge-green">🟢 On time — session starts 05:00 PM</span>
       </div>`}
-    <button class="btn btn-green" onclick="attemptCheckin()">🏸 Check In Now</button>
+    <button class="btn btn-green ${shakeClass}" onclick="attemptCheckin()">🏸 Check In Now</button>
     <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:10px;">
       ${demoTime ? 'Demo mode — no location check' : 'Location verification required'}
     </p>
@@ -183,9 +314,9 @@ function renderCheckinArea() {
 
 function renderReaction(container, record, status) {
   const reactions = {
-    ontime:    { img: 'imgs/WhatsApp Sticker 1', title: "YOU'RE ON TIME!",  msg: 'Perfect! Full session salary recorded.', cls: 'on-time' },
-    late:      { img: 'imgs/WhatsApp Sticker 2', title: 'A BIT LATE...',    msg: `${record.lateMinutes} min late — ${record.deduction.toFixed(1)} EGP deducted`, cls: 'late' },
-    superlate: { img: 'imgs/WhatsApp Sticker',   title: 'SUPER LATE! 😂',   msg: `${record.lateMinutes} min late — ${record.deduction.toFixed(1)} EGP deducted. BRO WAKE UP!`, cls: 'super-late' }
+    ontime:    { img: 'imgs/WhatsApp Sticker 1', title: "YOU'RE ON TIME!", msg: 'Perfect! Full session salary recorded.', cls: 'on-time' },
+    late:      { img: 'imgs/WhatsApp Sticker 2', title: 'A BIT LATE...',   msg: `${record.lateMinutes} min late — ${record.deduction.toFixed(1)} EGP deducted`, cls: 'late' },
+    superlate: { img: 'imgs/WhatsApp Sticker',   title: 'SUPER LATE! 😂',  msg: `${record.lateMinutes} min late — ${record.deduction.toFixed(1)} EGP deducted. BRO WAKE UP!`, cls: 'super-late' }
   };
   const r = reactions[status];
   container.innerHTML = `
@@ -204,13 +335,10 @@ function renderReaction(container, record, status) {
 
 function attemptCheckin() {
   if (demoTime) { doCheckin(); return; }
-
   const statusEl = document.getElementById('checkin-status');
   const btn = document.querySelector('#checkin-area .btn-green');
   if (btn) { btn.textContent = '📡 Getting location...'; btn.disabled = true; }
-
   if (!navigator.geolocation) { showCheckinError('Geolocation not supported on this device.'); return; }
-
   navigator.geolocation.getCurrentPosition(
     pos => {
       const dist = haversineMeters(pos.coords.latitude, pos.coords.longitude, CONFIG.academyLat, CONFIG.academyLng);
@@ -255,6 +383,14 @@ function doCheckin() {
   document.getElementById('coach-days').textContent = summary.daysPresent;
   const pct = Math.min(100, (summary.daysPresent / CONFIG.sessionsPerMonth) * 100);
   document.getElementById('coach-progress').style.width = pct + '%';
+
+  // Update streak
+  const streakEl = document.getElementById('coach-streak');
+  if (streakEl) streakEl.textContent = getStreak(currentUser.id);
+
+  // Sound & confetti
+  playSound(status);
+  if (status === 'ontime') launchConfetti();
 
   renderReaction(document.getElementById('checkin-area'), record, status);
   updateClock();

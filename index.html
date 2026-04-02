@@ -9,13 +9,10 @@
 </head>
 <body>
 
-<!-- Decorations -->
 <div class="shuttle-deco tl">🏸</div>
 <div class="shuttle-deco br">🏸</div>
 
-<!-- ═══════════════════════════════════════
-     LOGIN PAGE
-═══════════════════════════════════════ -->
+<!-- LOGIN PAGE -->
 <div class="page" id="page-login">
   <div class="login-page">
     <div class="login-logo">🏸 SMASH<span>IN</span></div>
@@ -23,7 +20,7 @@
     <div class="login-card">
       <div class="input-group">
         <label>EMAIL</label>
-        <input class="input-field" type="email" id="login-email" placeholder="coach@academy.com" autocomplete="email" />
+        <input class="input-field" type="email" id="login-email" placeholder="your@email.com" autocomplete="email" />
       </div>
       <div class="input-group">
         <label>PASSWORD</label>
@@ -34,7 +31,7 @@
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);">
         <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:700;letter-spacing:1px;">DEMO ACCOUNTS</div>
         <div style="font-size:12px;color:var(--text-muted);line-height:1.8;">
-          Coach: <code style="color:var(--green)">ahmed@academy.com</code> / <code style="color:var(--green)">1234</code><br/>
+          Coach: <code style="color:var(--green)">tomhesham2009@gmail.com</code> / <code style="color:var(--green)">car3boy2009</code><br/>
           Admin: <code style="color:var(--yellow)">admin@academy.com</code> / <code style="color:var(--yellow)">admin123</code>
         </div>
       </div>
@@ -42,9 +39,7 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════
-     COACH PAGE
-═══════════════════════════════════════ -->
+<!-- COACH PAGE -->
 <div class="page" id="page-coach">
   <div class="header">
     <div class="header-logo">🏸 <span>SMASH</span>IN</div>
@@ -60,6 +55,9 @@
 
   <div class="page-content">
 
+    <!-- Daily Quote -->
+    <div class="quote-bar" id="daily-quote"></div>
+
     <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card">
@@ -72,6 +70,10 @@
       <div class="stat-card">
         <div class="label">Base Salary</div>
         <div class="value money" id="coach-salary">0 EGP</div>
+      </div>
+      <div class="stat-card" style="grid-column:span 2;display:flex;align-items:center;justify-content:center;gap:12px;">
+        <div class="label" style="margin:0;">🔥 Session Streak</div>
+        <div class="streak-badge">🔥 <span id="coach-streak">0</span> sessions</div>
       </div>
     </div>
 
@@ -99,15 +101,13 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════
-     ADMIN PAGE
-═══════════════════════════════════════ -->
+<!-- ADMIN PAGE -->
 <div class="page" id="page-admin">
   <div class="header">
     <div class="header-logo">🏸 <span>SMASH</span>IN</div>
     <div class="header-user">
       <div style="font-size:13px;font-weight:700;color:var(--yellow);">Admin</div>
-      <div class="avatar gold">Mido</div>
+      <div class="avatar gold">AD</div>
       <button class="sign-out" onclick="doLogout()">Sign out</button>
     </div>
   </div>
@@ -141,6 +141,7 @@
     <div class="tabs">
       <div class="tab active" onclick="switchAdminTab('overview')">Coach Overview</div>
       <div class="tab" onclick="switchAdminTab('log')">Full Log</div>
+      <div class="tab" onclick="switchAdminTab('leaderboard')">🏆 Leaderboard</div>
     </div>
 
     <!-- Tab Content -->
@@ -149,7 +150,6 @@
   </div>
 </div>
 
-<!-- Scripts (order matters) -->
 <script src="js/data.js"></script>
 <script src="js/coach.js"></script>
 <script src="js/admin.js"></script>
