@@ -15,11 +15,11 @@ const CONFIG = {
 // ─── USERS ───
 const USERS = [
   { id: 1, email: 'tomhesham2009@gmail.com', password: 'car3boy2009', name: 'Mohamed Hesham (H)',      sessionRate: 383.3, isAdmin: false },
-  { id: 2, email: 'mohamed@academy.com',     password: '1234',        name: 'Omar Ezzat',              sessionRate: 383.3, isAdmin: false },
-  { id: 3, email: 'khaled@academy.com',      password: '1234',        name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3, isAdmin: false },
+  { id: 2, email: 'ezzat@academy.com',     password: '1234',        name: 'Omar Ezzat',              sessionRate: 383.3, isAdmin: false },
+  { id: 3, email: 'mahmoud@academy.com',      password: '1234',        name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3, isAdmin: false },
   { id: 4, email: 'omar@academy.com',        password: '1234',        name: 'Omar Zakrie',             sessionRate: 383.3, isAdmin: false },
-  { id: 5, email: 'youssef@academy.com',     password: '1234',        name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3, isAdmin: false },
-  { id: 6, email: 'kareem@academy.com',      password: '1234',        name: 'Abo AL7amd',              sessionRate: 550,   isAdmin: false },
+  { id: 5, email: 'mohamed@academy.com',     password: '1234',        name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3, isAdmin: false },
+  { id: 6, email: 'abo al 7amd@academy.com',      password: '1234',        name: 'Abo AL7amd',              sessionRate: 550,   isAdmin: false },
   { id: 7, email: 'admin@academy.com',       password: 'admin123',    name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,     isAdmin: true  },
 ];
 
