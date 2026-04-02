@@ -7,6 +7,13 @@ function getEffectiveTime() {
   return new Date();
 }
 
+function to12h(hour, minute) {
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const h = String(hour % 12 || 12).padStart(2,'0');
+  const m = String(minute).padStart(2,'0');
+  return h + ':' + m + ' ' + ampm;
+}
+
 function renderCoachPage() {
   const u = currentUser;
   const monthKey = getCurrentMonthKey();
@@ -32,18 +39,14 @@ function renderCoachPage() {
 function renderDemoPanel() {
   const panel = document.getElementById('demo-panel');
   if (!panel) return;
-  const _dh = demoTime ? new Date(demoTime).getHours() : 0;
-const _dm = demoTime ? new Date(demoTime).getMinutes() : 0;
-const _ampm = _dh >= 12 ? 'PM' : 'AM';
-const _label = String(_dh % 12 || 12).padStart(2,'0') + ':' + String(_dm).padStart(2,'0') + ' ' + _ampm;
-const simLabel = demoTime
-    ? `<div style="margin-top:8px;font-size:12px;color:var(--yellow);">⏰ Simulating: ${_label}</div>`
+  const simLabel = demoTime
+    ? `<div style="margin-top:8px;font-size:12px;color:var(--yellow);">⏰ Simulating: ${to12h(new Date(demoTime).getHours(), new Date(demoTime).getMinutes())}</div>`
     : '';
   panel.innerHTML = `
     <div style="background:rgba(255,225,53,0.08);border:1px dashed rgba(255,225,53,0.3);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
       <div style="font-size:11px;font-weight:800;letter-spacing:1px;color:var(--yellow);margin-bottom:10px;">🧪 DEMO MODE — SIMULATE CHECK-IN TIME</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(16,30)">🌙 4:30 PM (Early)</button>
+        <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(16,0)">🌙 4:00 PM (Early)</button>
         <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(17,0)">✅ 5:00 PM (On time)</button>
         <button class="btn btn-sm" style="background:rgba(255,155,33,0.15);color:var(--orange);border:1px solid rgba(255,155,33,0.3);width:auto;" onclick="setDemoTime(17,20)">⚠️ 5:20 PM (A bit late)</button>
         <button class="btn btn-sm" style="background:rgba(255,77,109,0.15);color:var(--red);border:1px solid rgba(255,77,109,0.3);width:auto;" onclick="setDemoTime(17,30)">💀 5:30 PM (Super late)</button>
@@ -156,7 +159,7 @@ function renderCheckinArea() {
 
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
-  const lateBy = Math.max(0, nowMins - startMins - 1);
+  const lateBy = Math.max(0, nowMins - startMins);
 
   area.innerHTML = `
     <div class="checkin-time">
@@ -165,7 +168,7 @@ function renderCheckinArea() {
     </div>
     ${lateBy > 0 ? `
       <div style="text-align:center;margin-bottom:12px;">
-        <span class="${lateBy >= 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeduction(lateBy).toFixed(1)} EGP deduction</span>
+        <span class="${lateBy > 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeduction(lateBy).toFixed(1)} EGP deduction</span>
       </div>` : `
       <div style="text-align:center;margin-bottom:12px;">
         <span class="badge badge-green">🟢 On time — session starts 05:00 PM</span>
@@ -243,9 +246,7 @@ function showCheckinError(msg) {
 
 function doCheckin() {
   const now = getEffectiveTime();
-  const _h = now.getHours();
-  const _m = now.getMinutes();
-  const time = String(_h % 12 || 12).padStart(2,'0') + ':' + String(_m).padStart(2,'0') + ' ' + (_h >= 12 ? 'PM' : 'AM');
+  const time = to12h(now.getHours(), now.getMinutes());
   const record = addAttendance(currentUser.id, time);
   const status = getLateStatus(record.lateMinutes);
 
