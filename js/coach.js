@@ -32,8 +32,12 @@ function renderCoachPage() {
 function renderDemoPanel() {
   const panel = document.getElementById('demo-panel');
   if (!panel) return;
-  const simLabel = demoTime
-    ? `<div style="margin-top:8px;font-size:12px;color:var(--yellow);">⏰ Simulating: ${String(new Date(demoTime).getHours()).padStart(2,'0')}:${String(new Date(demoTime).getMinutes()).padStart(2,'0')} PM</div>`
+  const _dh = demoTime ? new Date(demoTime).getHours() : 0;
+const _dm = demoTime ? new Date(demoTime).getMinutes() : 0;
+const _ampm = _dh >= 12 ? 'PM' : 'AM';
+const _label = String(_dh % 12 || 12).padStart(2,'0') + ':' + String(_dm).padStart(2,'0') + ' ' + _ampm;
+const simLabel = demoTime
+    ? `<div style="margin-top:8px;font-size:12px;color:var(--yellow);">⏰ Simulating: ${_label}</div>`
     : '';
   panel.innerHTML = `
     <div style="background:rgba(255,225,53,0.08);border:1px dashed rgba(255,225,53,0.3);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
@@ -89,11 +93,13 @@ function resetDemo() {
 
 function updateClock() {
   const now = demoTime ? new Date(demoTime) : new Date();
-  const h = String(now.getHours()).padStart(2,'0');
+  const raw = now.getHours();
+  const h = String(raw % 12 || 12).padStart(2,'0');
   const m = String(now.getMinutes()).padStart(2,'0');
   const s = demoTime ? '00' : String(now.getSeconds()).padStart(2,'0');
+  const ampm = raw >= 12 ? 'PM' : 'AM';
   const el = document.getElementById('live-clock');
-  if (el) el.textContent = h + ':' + m + ':' + s;
+  if (el) el.textContent = h + ':' + m + ':' + s + ' ' + ampm;
   const dateEl = document.getElementById('live-date');
   if (dateEl) dateEl.textContent = now.toLocaleDateString('en-EG', { weekday: 'long', day: 'numeric', month: 'long' });
 }
@@ -237,7 +243,9 @@ function showCheckinError(msg) {
 
 function doCheckin() {
   const now = getEffectiveTime();
-  const time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  const _h = now.getHours();
+  const _m = now.getMinutes();
+  const time = String(_h % 12 || 12).padStart(2,'0') + ':' + String(_m).padStart(2,'0') + ' ' + (_h >= 12 ? 'PM' : 'AM');
   const record = addAttendance(currentUser.id, time);
   const status = getLateStatus(record.lateMinutes);
 
