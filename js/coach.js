@@ -168,7 +168,7 @@ function renderCheckinArea() {
     </div>
     ${lateBy > 0 ? `
       <div style="text-align:center;margin-bottom:12px;">
-        <span class="${lateBy > 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeduction(lateBy).toFixed(1)} EGP deduction</span>
+        <span class="${lateBy >= 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeduction(lateBy).toFixed(1)} EGP deduction</span>
       </div>` : `
       <div style="text-align:center;margin-bottom:12px;">
         <span class="badge badge-green">🟢 On time — session starts 05:00 PM</span>
