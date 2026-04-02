@@ -5,9 +5,9 @@ const CONFIG = {
   academyLng: 31.2497,
   geofenceMeters: 150,
   workDays: [1, 3, 6], // Mon=1, Wed=3, Sat=6
-  sessionStart: { h: 5, m: 0 },
-  checkinOpen: { h: 4, m: 0 },
-  sessionEnd: { h: 9, m: 0 },
+  sessionStart: { h: 17, m: 0 },
+  checkinOpen: { h: 16, m: 0 },
+  sessionEnd: { h: 21, m: 0 },
   lateDeductionPerHour: 100, // EGP per hour
   sessionsPerMonth: 12,
   currency: 'EGP',

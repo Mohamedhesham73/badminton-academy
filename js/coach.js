@@ -126,13 +126,13 @@ function renderCheckinArea() {
   const hour = now.getHours();
 
   // Too early — before 4:00 AM
-  if (!demoTime && hour < 4) {
+  if (!demoTime && hour < 16) {
     area.innerHTML = `
       <div class="checkin-time">
         <div id="live-clock" class="checkin-clock">--:--:--</div>
         <div id="live-date" class="checkin-date-str"></div>
       </div>
-      <button class="btn btn-disabled" disabled>😴 Check-in opens at 04:00 AM</button>`;
+      <button class="btn btn-disabled" disabled>😴 Check-in opens at 04:00 PM</button>`;
     return;
   }
 
@@ -164,7 +164,7 @@ function renderCheckinArea() {
         <span class="${lateBy >= 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeduction(lateBy).toFixed(1)} EGP deduction</span>
       </div>` : `
       <div style="text-align:center;margin-bottom:12px;">
-        <span class="badge badge-green">🟢 On time — session starts 05:00 AM</span>
+        <span class="badge badge-green">🟢 On time — session starts 05:00 PM</span>
       </div>`}
     <button class="btn btn-green" onclick="attemptCheckin()">🏸 Check In Now</button>
     <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:10px;">
