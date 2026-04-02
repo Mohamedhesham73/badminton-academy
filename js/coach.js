@@ -39,10 +39,10 @@ function renderDemoPanel() {
     <div style="background:rgba(255,225,53,0.08);border:1px dashed rgba(255,225,53,0.3);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
       <div style="font-size:11px;font-weight:800;letter-spacing:1px;color:var(--yellow);margin-bottom:10px;">🧪 DEMO MODE — SIMULATE CHECK-IN TIME</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(4,30)">🌙 4:30 PM (Early)</button>
-        <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(5,0)">✅ 5:00 PM (On time)</button>
-        <button class="btn btn-sm" style="background:rgba(255,155,33,0.15);color:var(--orange);border:1px solid rgba(255,155,33,0.3);width:auto;" onclick="setDemoTime(5,20)">⚠️ 5:20 PM (A bit late)</button>
-        <button class="btn btn-sm" style="background:rgba(255,77,109,0.15);color:var(--red);border:1px solid rgba(255,77,109,0.3);width:auto;" onclick="setDemoTime(5,30)">💀 5:30 PM (Super late)</button>
+        <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(16,30)">🌙 4:30 PM (Early)</button>
+        <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(17,0)">✅ 5:00 PM (On time)</button>
+        <button class="btn btn-sm" style="background:rgba(255,155,33,0.15);color:var(--orange);border:1px solid rgba(255,155,33,0.3);width:auto;" onclick="setDemoTime(17,20)">⚠️ 5:20 PM (A bit late)</button>
+        <button class="btn btn-sm" style="background:rgba(255,77,109,0.15);color:var(--red);border:1px solid rgba(255,77,109,0.3);width:auto;" onclick="setDemoTime(17,30)">💀 5:30 PM (Super late)</button>
         <button class="btn btn-sm" style="background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid rgba(255,255,255,0.1);width:auto;" onclick="resetDemo()">🔄 Reset</button>
       </div>
       ${simLabel}
@@ -125,7 +125,6 @@ function renderCheckinArea() {
 
   const hour = now.getHours();
 
-  // Too early — before 4:00 PM
   if (!demoTime && hour < 16) {
     area.innerHTML = `
       <div class="checkin-time">
@@ -136,7 +135,6 @@ function renderCheckinArea() {
     return;
   }
 
-  // Too late — after 9:00 PM
   if (!demoTime && hour >= CONFIG.sessionEnd.h) {
     area.innerHTML = `
       <div class="checkin-time">
@@ -152,7 +150,7 @@ function renderCheckinArea() {
 
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
-  const lateBy = Math.max(0, nowMins - startMins);
+  const lateBy = Math.max(0, nowMins - startMins - 1);
 
   area.innerHTML = `
     <div class="checkin-time">

@@ -1,14 +1,13 @@
 // ─── ACADEMY CONFIG ───
 const CONFIG = {
-  // TODO: Replace with your actual academy coordinates
-  academyLat: 30.0626,
-  academyLng: 31.2497,
+  academyLat: 30.0614,
+  academyLng: 31.3372,
   geofenceMeters: 150,
   workDays: [1, 3, 6], // Mon=1, Wed=3, Sat=6
   sessionStart: { h: 17, m: 0 },
   checkinOpen: { h: 16, m: 0 },
   sessionEnd: { h: 21, m: 0 },
-  lateDeductionPerHour: 100, // EGP per hour
+  lateDeductionPerHour: 100,
   sessionsPerMonth: 12,
   currency: 'EGP',
 };
@@ -16,16 +15,14 @@ const CONFIG = {
 // ─── USERS ───
 const USERS = [
   { id: 1, email: 'tomhesham2009@gmail.com', password: 'car3boy2009', name: 'Mohamed Hesham (H)', sessionRate: 383.3, isAdmin: false },
-  { id: 2, email: 'mohamed@academy.com', password: '1234', name: 'Omar Ezzat',   sessionRate: 383.3, isAdmin: false },
-  { id: 3, email: 'khaled@academy.com',  password: '1234', name: 'Mahmoud Mohamed Hassan', sessionRate: 383.3, isAdmin: false },
-  { id: 4, email: 'omar@academy.com',    password: '1234', name: 'Omar Zakrie',    sessionRate: 383.3, isAdmin: false },
-  { id: 5, email: 'youssef@academy.com', password: '1234', name: 'Mohamed Ibrahem (Dan)', sessionRate: 383.3, isAdmin: false },
-  { id: 6, email: 'kareem@academy.com',  password: '1234', name: 'Abo AL7amd', sessionRate: 550,   isAdmin: false },
-  { id: 7, email: 'admin@academy.com',   password: 'admin123', name: 'MOhamed Mostafa (Mido)',     sessionRate: 0,     isAdmin: true  },
+  { id: 2, email: 'mohamed@academy.com',     password: '1234',        name: 'Omar Ezzat',          sessionRate: 383.3, isAdmin: false },
+  { id: 3, email: 'khaled@academy.com',      password: '1234',        name: 'Mahmoud Mohamed Hassan', sessionRate: 383.3, isAdmin: false },
+  { id: 4, email: 'omar@academy.com',        password: '1234',        name: 'Omar Zakrie',         sessionRate: 383.3, isAdmin: false },
+  { id: 5, email: 'youssef@academy.com',     password: '1234',        name: 'Mohamed Ibrahem (Dan)', sessionRate: 383.3, isAdmin: false },
+  { id: 6, email: 'kareem@academy.com',      password: '1234',        name: 'Abo AL7amd',          sessionRate: 550,   isAdmin: false },
+  { id: 7, email: 'admin@academy.com',       password: 'admin123',    name: 'Mohamed Mostafa (Mido)', sessionRate: 0,  isAdmin: true  },
 ];
 
-// ─── ATTENDANCE (persisted in localStorage) ───
-// Each record: { userId, date: 'YYYY-MM-DD', checkInTime: 'HH:MM', lateMinutes: 0, deduction: 0 }
 function loadAttendance() {
   try {
     const raw = localStorage.getItem('academy_attendance');
@@ -39,21 +36,20 @@ function saveAttendance(data) {
 
 function getSeedData() {
   return [
-    { userId: 1, date: '2026-03-28', checkInTime: '05:00', lateMinutes: 0, deduction: 0 },
-    { userId: 1, date: '2026-03-30', checkInTime: '05:22', lateMinutes: 22, deduction: 36.7 },
-    { userId: 2, date: '2026-03-28', checkInTime: '05:00', lateMinutes: 0, deduction: 0 },
-    { userId: 3, date: '2026-03-28', checkInTime: '06:15', lateMinutes: 75, deduction: 125 },
-    { userId: 3, date: '2026-03-30', checkInTime: '05:05', lateMinutes: 5, deduction: 8.3 },
-    { userId: 4, date: '2026-03-28', checkInTime: '05:00', lateMinutes: 0, deduction: 0 },
-    { userId: 5, date: '2026-03-28', checkInTime: '05:00', lateMinutes: 0, deduction: 0 },
-    { userId: 6, date: '2026-03-28', checkInTime: '05:00', lateMinutes: 0, deduction: 0 },
-    { userId: 6, date: '2026-03-30', checkInTime: '05:45', lateMinutes: 45, deduction: 75 },
+    { userId: 1, date: '2026-03-28', checkInTime: '17:00', lateMinutes: 0,  deduction: 0 },
+    { userId: 1, date: '2026-03-30', checkInTime: '17:22', lateMinutes: 22, deduction: 36.7 },
+    { userId: 2, date: '2026-03-28', checkInTime: '17:00', lateMinutes: 0,  deduction: 0 },
+    { userId: 3, date: '2026-03-28', checkInTime: '18:15', lateMinutes: 75, deduction: 125 },
+    { userId: 3, date: '2026-03-30', checkInTime: '17:05', lateMinutes: 5,  deduction: 8.3 },
+    { userId: 4, date: '2026-03-28', checkInTime: '17:00', lateMinutes: 0,  deduction: 0 },
+    { userId: 5, date: '2026-03-28', checkInTime: '17:00', lateMinutes: 0,  deduction: 0 },
+    { userId: 6, date: '2026-03-28', checkInTime: '17:00', lateMinutes: 0,  deduction: 0 },
+    { userId: 6, date: '2026-03-30', checkInTime: '17:45', lateMinutes: 45, deduction: 75 },
   ];
 }
 
 let attendance = loadAttendance();
 
-// ─── HELPERS ───
 function getUser(id) { return USERS.find(u => u.id === id); }
 function getUserByEmail(email) { return USERS.find(u => u.email === email.toLowerCase().trim()); }
 
@@ -71,9 +67,8 @@ function calcLateMinutes(timeStr) {
   const [h, m] = timeStr.split(':').map(Number);
   const totalMins = h * 60 + m;
   const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
-  // Late starts at 05:01 (1 minute after start)
-  const lateAfter = startMins + 1;
-  return Math.max(0, totalMins - lateAfter + 1);
+  // Late starts at 17:01 — exactly 1 minute after session start
+  return Math.max(0, totalMins - startMins - 1);
 }
 
 function calcDeduction(lateMinutes) {
@@ -86,7 +81,7 @@ function getLateStatus(lateMinutes) {
   return 'superlate';
 }
 
-function getMonthKey(dateStr) { return dateStr.slice(0, 7); } // 'YYYY-MM'
+function getMonthKey(dateStr) { return dateStr.slice(0, 7); }
 
 function getMonthAttendance(userId, monthKey) {
   return attendance.filter(a => a.userId === userId && getMonthKey(a.date) === monthKey);
@@ -145,7 +140,6 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ─── AUTH ───
 let currentUser = null;
 
 function login(email, password) {
