@@ -1,4 +1,5 @@
 // ─── COACH PAGE ───
+import { CONFIG, USERS, attendance, currentUser, addAttendance, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeduction, getLateStatus, todayStr, isWorkDay, haversineMeters, formatDate, initials } from './data.js';
 
 function to12h(hour, minute) {
   const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -53,14 +54,29 @@ function launchConfetti() {
 
 // ─── SOUNDS ───
 function playSound(type) {
-  const sounds = {
-    ontime:    'imgs/برافو عليك - مدحت شلبي.mp3',
-    late:      'imgs/يحيى عزام - عايز حل للعلوقية.mp3',
-    superlate: 'imgs/شوبير ليه إيه المبرر.mp3'
-  };
   try {
-    const audio = new Audio(sounds[type]);
-    audio.play();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    if (type === 'ontime') {
+      osc.frequency.setValueAtTime(523, ctx.currentTime);
+      osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
+    } else if (type === 'late') {
+      osc.frequency.setValueAtTime(300, ctx.currentTime);
+      osc.frequency.setValueAtTime(250, ctx.currentTime + 0.2);
+    } else if (type === 'superlate') {
+      osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.setValueAtTime(150, ctx.currentTime + 0.15);
+      osc.frequency.setValueAtTime(100, ctx.currentTime + 0.3);
+    }
+    osc.type = 'sine';
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
   } catch(e) {}
 }
 
@@ -81,7 +97,7 @@ function getStreak(userId) {
   return streak;
 }
 
-function renderCoachPage() {
+export function renderCoachPage() {
   const u = currentUser;
   const monthKey = getCurrentMonthKey();
   const summary = calcMonthlySummary(u.id, monthKey);
@@ -241,7 +257,7 @@ function renderReaction(container, record, status) {
   `;
 }
 
-function attemptCheckin() {
+window.attemptCheckin = function attemptCheckin() {
   const statusEl = document.getElementById('checkin-status');
   const btn = document.querySelector('#checkin-area .btn-green');
   if (btn) { btn.textContent = '📡 Getting location...'; btn.disabled = true; }
@@ -271,14 +287,9 @@ function showCheckinError(msg) {
   }
 }
 
-function doCheckin() {
+window.doCheckin = function doCheckin() {
   const now = new Date();
-  const startH = CONFIG.sessionStart.h;
-  const startM = CONFIG.sessionStart.m;
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const startMins = startH * 60 + startM;
-  const isEarly = nowMins <= startMins;
-  const time = isEarly ? to12h(startH, startM) : to12h(now.getHours(), now.getMinutes());
+  const time = to12h(now.getHours(), now.getMinutes());
   const record = addAttendance(currentUser.id, time);
   const status = getLateStatus(record.lateMinutes);
 

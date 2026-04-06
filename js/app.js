@@ -1,5 +1,8 @@
-// ─── APP ROUTER ───
+import { login, logout, restoreSession, loadAttendance, listenToAttendance } from './data.js';
+import { renderCoachPage } from './coach.js';
+import { renderAdminPage } from './admin.js';
 
+// ─── APP ROUTER ───
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const pg = document.getElementById(id);
@@ -14,7 +17,7 @@ function launchShuttle() {
   setTimeout(() => el.remove(), 2000);
 }
 
-function doLogin() {
+window.doLogin = async function() {
   const email = document.getElementById('login-email').value.trim();
   const pw = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
@@ -28,6 +31,13 @@ function doLogin() {
   }
 
   errEl.style.display = 'none';
+  errEl.textContent = '';
+
+  // Show loading
+  const btn = document.querySelector('#page-login .btn-green');
+  if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
+
+  await loadAttendance();
   launchShuttle();
 
   if (user.isAdmin) {
@@ -37,16 +47,22 @@ function doLogin() {
     showPage('page-coach');
     renderCoachPage();
   }
+
+  // Listen for real-time updates
+  listenToAttendance(() => {
+    if (user.isAdmin) renderAdminPage();
+    else renderCoachPage();
+  });
 }
 
-function doLogout() {
+window.doLogout = function() {
   logout();
   showPage('page-login');
   document.getElementById('login-email').value = '';
   document.getElementById('login-password').value = '';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('login-password').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
   });
@@ -56,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const user = restoreSession();
   if (user) {
+    await loadAttendance();
     if (user.isAdmin) {
       showPage('page-admin');
       renderAdminPage();
@@ -63,6 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
       showPage('page-coach');
       renderCoachPage();
     }
+    listenToAttendance(() => {
+      if (user.isAdmin) renderAdminPage();
+      else renderCoachPage();
+    });
   } else {
     showPage('page-login');
   }

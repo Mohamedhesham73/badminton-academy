@@ -1,9 +1,25 @@
+// ─── FIREBASE IMPORTS ───
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD_3yHweVEDdQGLXkj5uLm6LdZAGezAU44",
+  authDomain: "disha-hall-attendance.firebaseapp.com",
+  projectId: "disha-hall-attendance",
+  storageBucket: "disha-hall-attendance.firebasestorage.app",
+  messagingSenderId: "471478048950",
+  appId: "1:471478048950:web:d4a89394d4b11ae1c4ae17"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 // ─── ACADEMY CONFIG ───
 const CONFIG = {
   academyLat: 30.0658149,
-academyLng: 31.3640282,
+  academyLng: 31.3640282,
   geofenceMeters: 150,
-  workDays: [1, 3, 6], // Mon=1, Wed=3, Sat=6
+  workDays: [1, 3, 6],
   sessionStart: { h: 17, m: 0 },
   checkinOpen: { h: 16, m: 0 },
   sessionEnd: { h: 21, m: 0 },
@@ -14,45 +30,58 @@ academyLng: 31.3640282,
 
 // ─── USERS ───
 const USERS = [
-  { id: 1, email: 'tomhesham2009@gmail.com', password: 'car3boy2009', name: 'Mohamed Hesham (H)',      sessionRate: 383.3, isAdmin: false },
-  { id: 2, email: 'ezzat@academy.com',     password: '1234',        name: 'Omar Ezzat',              sessionRate: 383.3, isAdmin: false },
-  { id: 3, email: 'mahmoud@academy.com',      password: '1234',        name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3, isAdmin: false },
-  { id: 4, email: 'Omarabdalkader1104@gmail.com',        password: 'Zikoo1029&',        name: 'Omar Zakrie',             sessionRate: 383.3, isAdmin: false },
-  { id: 5, email: 'sorormohamedibrahim@gmail.com',     password: 'cU@AtQSAn86GDAE',        name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3, isAdmin: false },
-  { id: 6, email: 'aboal7amd@academy.com',      password: '1234',        name: 'Abo AL7amd',              sessionRate: 550,   isAdmin: false },
-  { id: 7, email: 'admin@academy.com',       password: 'admin123',    name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,     isAdmin: true  },
+  { id: 1, email: 'tomhesham2009@gmail.com',     password: 'car3boy2009',      name: 'Mohamed Hesham (H)',      sessionRate: 383.3, isAdmin: false },
+  { id: 2, email: 'ezzat@academy.com',           password: '1234',             name: 'Omar Ezzat',              sessionRate: 383.3, isAdmin: false },
+  { id: 3, email: 'mahmoud@academy.com',         password: '1234',             name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3, isAdmin: false },
+  { id: 4, email: 'Omarabdalkader1104@gmail.com',password: 'Zikoo1029&',       name: 'Omar Zakrie',             sessionRate: 383.3, isAdmin: false },
+  { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE', name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3, isAdmin: false },
+  { id: 6, email: 'aboal7amd@academy.com',       password: '1234',             name: 'Abo AL7amd',              sessionRate: 550,   isAdmin: false },
+  { id: 7, email: 'admin@academy.com',           password: 'admin123',         name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,     isAdmin: true  },
 ];
 
-function loadAttendance() {
+// ─── ATTENDANCE (synced with Firestore) ───
+let attendance = [];
+
+async function loadAttendance() {
   try {
-    const raw = localStorage.getItem('academy_attendance');
-    return raw ? JSON.parse(raw) : getSeedData();
-  } catch { return getSeedData(); }
+    const snapshot = await getDocs(collection(db, 'attendance'));
+    attendance = [];
+    snapshot.forEach(d => attendance.push(d.data()));
+  } catch(e) {
+    console.error('Error loading:', e);
+  }
 }
 
-function saveAttendance(data) {
-  localStorage.setItem('academy_attendance', JSON.stringify(data));
+async function saveAttendance(record) {
+  try {
+    const id = `${record.userId}_${record.date}`;
+    await setDoc(doc(db, 'attendance', id), record);
+  } catch(e) {
+    console.error('Error saving:', e);
+  }
 }
 
-function getSeedData() {
-  return [
-    { userId: 1, date: '2026-03-28', checkInTime: '05:00 PM', lateMinutes: 0,  deduction: 0 },
-    { userId: 1, date: '2026-03-30', checkInTime: '05:22 PM', lateMinutes: 22, deduction: 36.7 },
-    { userId: 2, date: '2026-03-28', checkInTime: '05:00 PM', lateMinutes: 0,  deduction: 0 },
-    { userId: 3, date: '2026-03-28', checkInTime: '06:15 PM', lateMinutes: 75, deduction: 125 },
-    { userId: 3, date: '2026-03-30', checkInTime: '05:05 PM', lateMinutes: 5,  deduction: 8.3 },
-    { userId: 4, date: '2026-03-28', checkInTime: '05:00 PM', lateMinutes: 0,  deduction: 0 },
-    { userId: 5, date: '2026-03-28', checkInTime: '05:00 PM', lateMinutes: 0,  deduction: 0 },
-    { userId: 6, date: '2026-03-28', checkInTime: '05:00 PM', lateMinutes: 0,  deduction: 0 },
-    { userId: 6, date: '2026-03-30', checkInTime: '05:45 PM', lateMinutes: 45, deduction: 75 },
-  ];
+async function removeAttendance(userId, date) {
+  try {
+    const id = `${userId}_${date}`;
+    await deleteDoc(doc(db, 'attendance', id));
+    attendance = attendance.filter(a => !(a.userId === userId && a.date === date));
+  } catch(e) {
+    console.error('Error removing:', e);
+  }
 }
 
-let attendance = loadAttendance();
+function listenToAttendance(callback) {
+  onSnapshot(collection(db, 'attendance'), (snapshot) => {
+    attendance = [];
+    snapshot.forEach(d => attendance.push(d.data()));
+    callback();
+  });
+}
 
+// ─── HELPERS ───
 function getUser(id) { return USERS.find(u => u.id === id); }
 function getUserByEmail(email) { return USERS.find(u => u.email === email.toLowerCase().trim()); }
-
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 
 function isWorkDay(date = new Date()) {
@@ -107,18 +136,13 @@ function hasCheckedInToday(userId) {
   return attendance.find(a => a.userId === userId && a.date === todayStr());
 }
 
-function addAttendance(userId, checkInTime) {
+async function addAttendance(userId, checkInTime) {
   const lateMinutes = calcLateMinutes(checkInTime);
   const deduction = calcDeduction(lateMinutes);
   const record = { userId, date: todayStr(), checkInTime, lateMinutes, deduction };
   attendance.push(record);
-  saveAttendance(attendance);
+  await saveAttendance(record);
   return record;
-}
-
-function removeAttendance(userId, date) {
-  attendance = attendance.filter(a => !(a.userId === userId && a.date === date));
-  saveAttendance(attendance);
 }
 
 function formatDate(dateStr) {
@@ -144,6 +168,7 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+// ─── AUTH ───
 let currentUser = null;
 
 function login(email, password) {
@@ -164,3 +189,13 @@ function restoreSession() {
   if (id) currentUser = USERS.find(u => u.id === parseInt(id)) || null;
   return currentUser;
 }
+
+export {
+  CONFIG, USERS, attendance, currentUser,
+  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance,
+  getUser, getUserByEmail, todayStr, isWorkDay,
+  calcLateMinutes, calcDeduction, getLateStatus,
+  getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary,
+  hasCheckedInToday, formatDate, formatMonthLabel, initials, haversineMeters,
+  login, logout, restoreSession
+};

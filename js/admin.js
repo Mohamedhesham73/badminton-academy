@@ -1,9 +1,10 @@
 // ─── ADMIN PAGE ───
+import { CONFIG, USERS, attendance, removeAttendance, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
 
 let adminActiveTab = 'overview';
 let adminMonthKey = getCurrentMonthKey();
 
-function renderAdminPage() {
+export function renderAdminPage() {
   document.getElementById('admin-month-label').textContent = formatMonthLabel(adminMonthKey);
   renderAdminSummary();
   renderAdminTab(adminActiveTab);
@@ -23,7 +24,7 @@ function renderAdminSummary() {
   document.getElementById('admin-total-deductions').textContent = Math.round(totalDeductions).toLocaleString('en-EG');
 }
 
-function switchAdminTab(tab) {
+window.switchAdminTab = function switchAdminTab(tab) {
   adminActiveTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   event.target.classList.add('active');
@@ -185,14 +186,14 @@ function renderLeaderboardTab(container) {
   `;
 }
 
-function adminRemoveEntry(userId, date) {
+window.adminRemoveEntry = function adminRemoveEntry(userId, date) {
   const u = getUser(userId);
   if (!confirm(`Remove attendance for ${u.name} on ${date}?`)) return;
   removeAttendance(userId, date);
   renderAdminPage();
 }
 
-function changeAdminMonth(dir) {
+window.changeAdminMonth = function changeAdminMonth(dir) {
   const [y, m] = adminMonthKey.split('-').map(Number);
   const d = new Date(y, m - 1 + dir, 1);
   adminMonthKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0');
