@@ -188,7 +188,7 @@ function renderCheckinArea() {
 
   const hour = now.getHours();
 
-  if (hour < 16) {
+  if (hour < CONFIG.checkinOpen.h) {
     area.innerHTML = `
       <div class="checkin-time">
         <div id="live-clock" class="checkin-clock">--:--:--</div>
