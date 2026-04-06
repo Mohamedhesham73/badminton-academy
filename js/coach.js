@@ -54,29 +54,14 @@ function launchConfetti() {
 
 // ─── SOUNDS ───
 function playSound(type) {
+  const sounds = {
+    ontime:    'imgs/ontime.mp3',
+    late:      'imgs/late.mp3',
+    superlate: 'imgs/superlate.mp3'
+  };
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    if (type === 'ontime') {
-      osc.frequency.setValueAtTime(523, ctx.currentTime);
-      osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
-      osc.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
-    } else if (type === 'late') {
-      osc.frequency.setValueAtTime(300, ctx.currentTime);
-      osc.frequency.setValueAtTime(250, ctx.currentTime + 0.2);
-    } else if (type === 'superlate') {
-      osc.frequency.setValueAtTime(200, ctx.currentTime);
-      osc.frequency.setValueAtTime(150, ctx.currentTime + 0.15);
-      osc.frequency.setValueAtTime(100, ctx.currentTime + 0.3);
-    }
-    osc.type = 'sine';
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
+    const audio = new Audio(sounds[type]);
+    audio.play();
   } catch(e) {}
 }
 
