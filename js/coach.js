@@ -288,7 +288,12 @@ function showCheckinError(msg) {
 
 function doCheckin() {
   const now = new Date();
-  const time = to12h(now.getHours(), now.getMinutes());
+  const startH = CONFIG.sessionStart.h;
+  const startM = CONFIG.sessionStart.m;
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = startH * 60 + startM;
+  const isEarly = nowMins <= startMins;
+  const time = isEarly ? to12h(startH, startM) : to12h(now.getHours(), now.getMinutes());
   const record = addAttendance(currentUser.id, time);
   const status = getLateStatus(record.lateMinutes);
 
