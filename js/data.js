@@ -1,7 +1,7 @@
 // ─── ACADEMY CONFIG ───
 const CONFIG = {
-  academyLat: 30.0614,
-  academyLng: 31.3372,
+  academyLat: 30.0658149,
+academyLng: 31.3640282,
   geofenceMeters: 150,
   workDays: [1, 3, 6], // Mon=1, Wed=3, Sat=6
   sessionStart: { h: 17, m: 0 },
