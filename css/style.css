@@ -72,13 +72,15 @@ body::before {
   background: rgba(10, 22, 40, 0.85);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(0,200,150,0.15);
-  padding: 14px 20px;
+  padding: 10px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: sticky;
   top: 0;
   z-index: 100;
+  flex-wrap: nowrap;
+  gap: 8px;
 }
 .header-logo {
   font-family: 'Bebas Neue', sans-serif;
