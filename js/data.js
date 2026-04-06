@@ -18,7 +18,7 @@ const db = getFirestore(app);
 const CONFIG = {
   academyLat: 30.0658149,
   academyLng: 31.3640282,
-  geofenceMeters: 150,
+  geofenceMeters: 50000,
   workDays: [1, 3, 6],
   sessionStart: { h: 0, m: 0 },
   checkinOpen: { h: 0 , m: 1 },
