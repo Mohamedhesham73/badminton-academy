@@ -1,12 +1,5 @@
 // ─── COACH PAGE ───
 
-let demoTime = null;
-
-function getEffectiveTime() {
-  if (demoTime) return new Date(demoTime);
-  return new Date();
-}
-
 function to12h(hour, minute) {
   const ampm = hour >= 12 ? 'PM' : 'AM';
   const h = String(hour % 12 || 12).padStart(2,'0');
@@ -68,7 +61,6 @@ function playSound(type) {
     gain.connect(ctx.destination);
     gain.gain.setValueAtTime(0.3, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-
     if (type === 'ontime') {
       osc.frequency.setValueAtTime(523, ctx.currentTime);
       osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
@@ -81,7 +73,6 @@ function playSound(type) {
       osc.frequency.setValueAtTime(150, ctx.currentTime + 0.15);
       osc.frequency.setValueAtTime(100, ctx.currentTime + 0.3);
     }
-
     osc.type = 'sine';
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.5);
@@ -93,9 +84,7 @@ function getStreak(userId) {
   const records = attendance
     .filter(a => a.userId === userId)
     .sort((a,b) => b.date.localeCompare(a.date));
-
   if (records.length === 0) return 0;
-
   let streak = 1;
   for (let i = 1; i < records.length; i++) {
     const prev = new Date(records[i-1].date + 'T00:00:00');
@@ -122,83 +111,20 @@ function renderCoachPage() {
   const pct = Math.min(100, (summary.daysPresent / CONFIG.sessionsPerMonth) * 100);
   document.getElementById('coach-progress').style.width = pct + '%';
 
-  // Daily quote
   const quoteEl = document.getElementById('daily-quote');
   if (quoteEl) quoteEl.textContent = getDailyQuote();
 
-  // Streak
   const streakEl = document.getElementById('coach-streak');
-  if (streakEl) {
-    const streak = getStreak(u.id);
-    streakEl.textContent = streak;
-  }
+  if (streakEl) streakEl.textContent = getStreak(u.id);
 
-  renderDemoPanel();
   renderCheckinArea();
   updateClock();
   setInterval(updateClock, 1000);
   renderCoachHistory(u.id, monthKey);
 }
 
-function renderDemoPanel() {
-  const panel = document.getElementById('demo-panel');
-  if (!panel) return;
-  const simLabel = demoTime
-    ? `<div style="margin-top:8px;font-size:12px;color:var(--yellow);">⏰ Simulating: ${to12h(new Date(demoTime).getHours(), new Date(demoTime).getMinutes())}</div>`
-    : '';
-  panel.innerHTML = `
-    <div style="background:rgba(255,225,53,0.08);border:1px dashed rgba(255,225,53,0.3);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
-      <div style="font-size:11px;font-weight:800;letter-spacing:1px;color:var(--yellow);margin-bottom:10px;">🧪 DEMO MODE — SIMULATE CHECK-IN TIME</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(16,0)">🌙 4:00 PM (Early)</button>
-        <button class="btn btn-sm" style="background:rgba(0,200,150,0.15);color:var(--green);border:1px solid rgba(0,200,150,0.3);width:auto;" onclick="setDemoTime(17,0)">✅ 5:00 PM (On time)</button>
-        <button class="btn btn-sm" style="background:rgba(255,155,33,0.15);color:var(--orange);border:1px solid rgba(255,155,33,0.3);width:auto;" onclick="setDemoTime(17,20)">⚠️ 5:20 PM (A bit late)</button>
-        <button class="btn btn-sm" style="background:rgba(255,77,109,0.15);color:var(--red);border:1px solid rgba(255,77,109,0.3);width:auto;" onclick="setDemoTime(17,30)">💀 5:30 PM (Super late)</button>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid rgba(255,255,255,0.1);width:auto;" onclick="resetDemo()">🔄 Reset</button>
-      </div>
-      ${simLabel}
-    </div>
-  `;
-}
-
-function setDemoTime(hour, minute) {
-  const dateStr = todayStr();
-  attendance = attendance.filter(a => !(a.userId === currentUser.id && a.date === dateStr));
-  saveAttendance(attendance);
-  const d = new Date();
-  d.setHours(hour, minute, 0, 0);
-  demoTime = d.getTime();
-  renderDemoPanel();
-  renderCheckinArea();
-  updateClock();
-  const monthKey = getCurrentMonthKey();
-  const summary = calcMonthlySummary(currentUser.id, monthKey);
-  document.getElementById('coach-days').textContent = summary.daysPresent;
-  const pct = Math.min(100, (summary.daysPresent / CONFIG.sessionsPerMonth) * 100);
-  document.getElementById('coach-progress').style.width = pct + '%';
-  renderCoachHistory(currentUser.id, monthKey);
-}
-
-function resetDemo() {
-  demoTime = null;
-  const dateStr = todayStr();
-  attendance = attendance.filter(a => !(a.userId === currentUser.id && a.date === dateStr));
-  saveAttendance(attendance);
-  renderDemoPanel();
-  renderCheckinArea();
-  updateClock();
-  const monthKey = getCurrentMonthKey();
-  const summary = calcMonthlySummary(currentUser.id, monthKey);
-  document.getElementById('coach-days').textContent = summary.daysPresent;
-  const pct = Math.min(100, (summary.daysPresent / CONFIG.sessionsPerMonth) * 100);
-  document.getElementById('coach-progress').style.width = pct + '%';
-  renderCoachHistory(currentUser.id, monthKey);
-}
-
 function getClockColor(now) {
-  const h = now.getHours();
-  const m = now.getMinutes();
-  const totalMins = h * 60 + m;
+  const totalMins = now.getHours() * 60 + now.getMinutes();
   const openMins = 16 * 60;
   const startMins = 17 * 60;
   if (totalMins < openMins) return 'var(--text-muted)';
@@ -209,11 +135,11 @@ function getClockColor(now) {
 }
 
 function updateClock() {
-  const now = demoTime ? new Date(demoTime) : new Date();
+  const now = new Date();
   const raw = now.getHours();
   const h = String(raw % 12 || 12).padStart(2,'0');
   const m = String(now.getMinutes()).padStart(2,'0');
-  const s = demoTime ? '00' : String(now.getSeconds()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
   const ampm = raw >= 12 ? 'PM' : 'AM';
   const el = document.getElementById('live-clock');
   if (el) {
@@ -236,10 +162,10 @@ function getCountdownText(now) {
 
 function renderCheckinArea() {
   const u = currentUser;
-  const now = getEffectiveTime();
+  const now = new Date();
   const area = document.getElementById('checkin-area');
   const alreadyIn = hasCheckedInToday(u.id);
-  const workDay = demoTime ? true : isWorkDay(now);
+  const workDay = isWorkDay(now);
 
   if (alreadyIn) {
     renderReaction(area, alreadyIn, getLateStatus(alreadyIn.lateMinutes));
@@ -261,7 +187,7 @@ function renderCheckinArea() {
 
   const hour = now.getHours();
 
-  if (!demoTime && hour < 16) {
+  if (hour < 16) {
     area.innerHTML = `
       <div class="checkin-time">
         <div id="live-clock" class="checkin-clock">--:--:--</div>
@@ -271,7 +197,7 @@ function renderCheckinArea() {
     return;
   }
 
-  if (!demoTime && hour >= CONFIG.sessionEnd.h) {
+  if (hour >= CONFIG.sessionEnd.h) {
     area.innerHTML = `
       <div class="checkin-time">
         <div id="live-clock" class="checkin-clock">--:--:--</div>
@@ -288,8 +214,7 @@ function renderCheckinArea() {
   const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
   const lateBy = Math.max(0, nowMins - startMins);
   const countdown = getCountdownText(now);
-
-  const shakeClass = (!demoTime && startMins - nowMins <= 5 && startMins - nowMins > 0) ? 'shake-btn' : '';
+  const shakeClass = (startMins - nowMins <= 5 && startMins - nowMins > 0) ? 'shake-btn' : '';
 
   area.innerHTML = `
     <div class="checkin-time">
@@ -305,9 +230,7 @@ function renderCheckinArea() {
         <span class="badge badge-green">🟢 On time — session starts 05:00 PM</span>
       </div>`}
     <button class="btn btn-green ${shakeClass}" onclick="attemptCheckin()">🏸 Check In Now</button>
-    <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:10px;">
-      ${demoTime ? 'Demo mode — no location check' : 'Location verification required'}
-    </p>
+    <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:10px;">Location verification required</p>
     <div id="checkin-status" style="margin-top:12px;"></div>
   `;
 }
@@ -334,7 +257,6 @@ function renderReaction(container, record, status) {
 }
 
 function attemptCheckin() {
-  if (demoTime) { doCheckin(); return; }
   const statusEl = document.getElementById('checkin-status');
   const btn = document.querySelector('#checkin-area .btn-green');
   if (btn) { btn.textContent = '📡 Getting location...'; btn.disabled = true; }
@@ -349,15 +271,7 @@ function attemptCheckin() {
       }
     },
     err => {
-      if (statusEl) {
-        statusEl.innerHTML = `
-          <div style="background:rgba(255,155,33,0.1);border:1px solid rgba(255,155,33,0.25);border-radius:10px;padding:12px;text-align:center;">
-            <div style="font-size:13px;color:var(--orange);margin-bottom:10px;">📍 Location access denied — demo mode</div>
-            <button class="btn btn-green btn-sm" onclick="doCheckin()">Simulate Check-In (Demo)</button>
-          </div>`;
-      }
-      const btn2 = document.querySelector('#checkin-area .btn-green');
-      if (btn2 && btn2.textContent.includes('Getting')) btn2.style.display = 'none';
+      showCheckinError('Location access denied. Please enable location and try again.');
     },
     { timeout: 8000 }
   );
@@ -373,7 +287,7 @@ function showCheckinError(msg) {
 }
 
 function doCheckin() {
-  const now = getEffectiveTime();
+  const now = new Date();
   const time = to12h(now.getHours(), now.getMinutes());
   const record = addAttendance(currentUser.id, time);
   const status = getLateStatus(record.lateMinutes);
@@ -384,11 +298,9 @@ function doCheckin() {
   const pct = Math.min(100, (summary.daysPresent / CONFIG.sessionsPerMonth) * 100);
   document.getElementById('coach-progress').style.width = pct + '%';
 
-  // Update streak
   const streakEl = document.getElementById('coach-streak');
   if (streakEl) streakEl.textContent = getStreak(currentUser.id);
 
-  // Sound & confetti
   playSound(status);
   if (status === 'ontime') launchConfetti();
 
