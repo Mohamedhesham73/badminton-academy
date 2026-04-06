@@ -33,11 +33,19 @@ window.doLogin = async function() {
   errEl.style.display = 'none';
   errEl.textContent = '';
 
-  // Show loading
   const btn = document.querySelector('#page-login .btn-green');
   if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
 
-  await loadAttendance();
+  try {
+    await Promise.race([
+      loadAttendance(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+    ]);
+  } catch(e) {
+    // timeout or error - continue anyway with empty attendance
+  }
+
+  if (btn) { btn.textContent = 'Sign In →'; btn.disabled = false; }
   launchShuttle();
 
   if (user.isAdmin) {
