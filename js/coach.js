@@ -55,9 +55,9 @@ function launchConfetti() {
 // ─── SOUNDS ───
 function playSound(type) {
   const sounds = {
-    ontime:    'imgs/ontime.mp3',
-    late:      'imgs/late.mp3',
-    superlate: 'imgs/superlate.mp3'
+    ontime:    './imgs/ontime.mp3',
+    late:      './imgs/late.mp3',
+    superlate: './imgs/superlate.mp3'
   };
   try {
     const audio = new Audio(sounds[type]);
