@@ -9,6 +9,13 @@ function to12h(hour, minute) {
   return h + ':' + m + ' ' + ampm;
 }
 
+// ─── GET COACH START TIME FOR TODAY ───
+function getCoachStartTime(user) {
+  const todayDay = new Date().getDay();
+  const custom = user?.customStart?.[todayDay];
+  return custom || CONFIG.sessionStart;
+}
+
 // ─── QUOTES ───
 const QUOTES = [
   "You're here. That's already half the battle. 💪",
@@ -138,9 +145,9 @@ function updateClock() {
   if (dateEl) dateEl.textContent = now.toLocaleDateString('en-EG', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-function getCountdownText(now) {
+function getCountdownText(now, startTime) {
   const totalMins = now.getHours() * 60 + now.getMinutes();
-  const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
+  const startMins = startTime.h * 60 + startTime.m;
   const diff = startMins - totalMins;
   if (diff <= 0) return null;
   if (diff >= 60) return `Session starts in ${Math.floor(diff/60)}h ${diff%60}m ⏳`;
@@ -198,11 +205,14 @@ function renderCheckinArea() {
     return;
   }
 
+  // Get this coach's start time for today
+  const startTime = getCoachStartTime(u);
   const nowMins = now.getHours() * 60 + now.getMinutes();
-  const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
+  const startMins = startTime.h * 60 + startTime.m;
   const lateBy = Math.max(0, nowMins - startMins);
-  const countdown = getCountdownText(now);
+  const countdown = getCountdownText(now, startTime);
   const shakeClass = (startMins - nowMins <= 5 && startMins - nowMins > 0) ? 'shake-btn' : '';
+  const startLabel = to12h(startTime.h, startTime.m);
 
   area.innerHTML = `
     <div class="checkin-time">
@@ -215,7 +225,7 @@ function renderCheckinArea() {
         <span class="${lateBy >= 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeduction(lateBy).toFixed(1)} EGP deduction</span>
       </div>` : `
       <div style="text-align:center;margin-bottom:12px;">
-        <span class="badge badge-green">🟢 On time — session starts 05:00 PM</span>
+        <span class="badge badge-green">🟢 On time — session starts ${startLabel}</span>
       </div>`}
     <button class="btn btn-green ${shakeClass}" onclick="attemptCheckin()">🏸 Check In Now</button>
     <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:10px;">Location verification required</p>
@@ -276,31 +286,33 @@ function showCheckinError(msg) {
 
 window.doCheckin = function doCheckin() {
   const now = new Date();
-  const startH = CONFIG.sessionStart.h;
-  const startM = CONFIG.sessionStart.m;
+  const u = currentUser;
+  const startTime = getCoachStartTime(u);
+  const startH = startTime.h;
+  const startM = startTime.m;
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const startMins = startH * 60 + startM;
   const isEarly = nowMins <= startMins;
   const time = isEarly ? to12h(startH, startM) : to12h(now.getHours(), now.getMinutes());
 
-  const record = addAttendance(currentUser.id, time);
+  const record = addAttendance(u.id, time);
   const status = getLateStatus(record.lateMinutes);
 
   const monthKey = getCurrentMonthKey();
-  const summary = calcMonthlySummary(currentUser.id, monthKey);
+  const summary = calcMonthlySummary(u.id, monthKey);
   document.getElementById('coach-days').textContent = summary.daysPresent;
   const pct = Math.min(100, (summary.daysPresent / CONFIG.sessionsPerMonth) * 100);
   document.getElementById('coach-progress').style.width = pct + '%';
 
   const streakEl = document.getElementById('coach-streak');
-  if (streakEl) streakEl.textContent = getStreak(currentUser.id);
+  if (streakEl) streakEl.textContent = getStreak(u.id);
 
   playSound(status);
   if (status === 'ontime') launchConfetti();
 
   renderReaction(document.getElementById('checkin-area'), record, status);
   updateClock();
-  renderCoachHistory(currentUser.id, monthKey);
+  renderCoachHistory(u.id, monthKey);
 }
 
 function renderCoachHistory(userId, monthKey) {
