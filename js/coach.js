@@ -95,7 +95,12 @@ export function renderCoachPage() {
   const monthKey = getCurrentMonthKey();
   const summary = calcMonthlySummary(u.id, monthKey);
 
-  document.getElementById('coach-avatar').textContent = initials(u.name);
+  const avatarEl = document.getElementById('coach-avatar');
+if (u.photo) {
+  avatarEl.innerHTML = `<img src="${u.photo}" alt="${u.name}" onerror="this.parentElement.textContent='${initials(u.name)}'" />`;
+} else {
+  avatarEl.textContent = initials(u.name);
+}
   document.getElementById('coach-name-header').textContent = u.name;
   document.getElementById('coach-days').textContent = summary.daysPresent;
   document.getElementById('coach-sessions').textContent = CONFIG.sessionsPerMonth;
