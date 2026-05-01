@@ -1,6 +1,7 @@
 import { login, logout, restoreSession, loadAttendance, listenToAttendance } from './data.js';
 import { renderCoachPage } from './coach.js';
 import { renderAdminPage } from './admin.js';
+import { initNotifications } from './notifications.js';
 
 // ─── APP ROUTER ───
 function showPage(id) {
@@ -41,9 +42,7 @@ window.doLogin = async function() {
       loadAttendance(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]);
-  } catch(e) {
-    // timeout or error - continue anyway with empty attendance
-  }
+  } catch(e) {}
 
   if (btn) { btn.textContent = 'Sign In →'; btn.disabled = false; }
   launchShuttle();
@@ -54,9 +53,10 @@ window.doLogin = async function() {
   } else {
     showPage('page-coach');
     renderCoachPage();
+    // Init notifications for coaches only
+    initNotifications();
   }
 
-  // Listen for real-time updates
   listenToAttendance(() => {
     if (user.isAdmin) renderAdminPage();
     else renderCoachPage();
@@ -80,14 +80,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const user = restoreSession();
   if (user) {
-    await loadAttendance();
+    await Promise.race([
+      loadAttendance(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+    ]).catch(() => {});
+
     if (user.isAdmin) {
       showPage('page-admin');
       renderAdminPage();
     } else {
       showPage('page-coach');
       renderCoachPage();
+      initNotifications();
     }
+
     listenToAttendance(() => {
       if (user.isAdmin) renderAdminPage();
       else renderCoachPage();

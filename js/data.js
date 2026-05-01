@@ -35,7 +35,7 @@ const USERS = [
   { id: 3, email: 'mahmoud@academy.com',         password: '1234',             name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3, isAdmin: false },
   { id: 4, email: 'Omarabdalkader1104@gmail.com',password: 'Zikoo1029&',       name: 'Omar Zakrie',             sessionRate: 383.3, isAdmin: false },
   { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE', name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3, isAdmin: false },
-  { id: 6, email: 'aboal7amd@academy.com',       password: '1234',             name: 'Abo AL7amd',              sessionRate: 550,   isAdmin: false },
+  { id: 6, email: 'aboal7amd@academy.com',       password: '1234',             name: 'Abo AL7amd',              sessionRate: 541.6,   isAdmin: false },
   { id: 7, email: 'admin@academy.com',           password: 'admin123',         name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,     isAdmin: true  },
 ];
 
