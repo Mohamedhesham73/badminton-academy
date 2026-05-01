@@ -5,6 +5,17 @@ import { listenToNotes, markNoteRead, deleteNote, formatNoteTime } from './notes
 let adminActiveTab = 'overview';
 let adminMonthKey = getCurrentMonthKey();
 
+// ─── AVATAR HELPER ───
+function avatarHtml(user, size = 36) {
+  const fontSize = Math.round(size * 0.33);
+  if (user.photo) {
+    return `<div class="avatar ${user.sessionRate > 400 ? 'gold' : ''}" style="width:${size}px;height:${size}px;padding:0;overflow:hidden;">
+      <img src="${user.photo}" alt="${user.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.textContent='${initials(user.name)}'" />
+    </div>`;
+  }
+  return `<div class="avatar ${user.sessionRate > 400 ? 'gold' : ''}" style="width:${size}px;height:${size}px;font-size:${fontSize}px;">${initials(user.name)}</div>`;
+}
+
 export function renderAdminPage() {
   document.getElementById('admin-month-label').textContent = formatMonthLabel(adminMonthKey);
   renderAdminSummary();
@@ -52,12 +63,11 @@ function renderOverviewTab(container) {
   container.innerHTML = coaches.map(u => {
     const s = calcMonthlySummary(u.id, adminMonthKey);
     const pct = Math.min(100, (s.daysPresent / CONFIG.sessionsPerMonth) * 100);
-    const isGold = u.sessionRate > 400;
     return `
       <div class="coach-row fade-in">
         <div class="coach-row-header">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div class="avatar ${isGold ? 'gold' : ''}" style="cursor:default;" title="${u.name}">${initials(u.name)}</div>
+            ${avatarHtml(u, 36)}
             <div>
               <div class="coach-name">${u.name}</div>
               <div class="coach-meta">${u.sessionRate.toFixed(1)} EGP/session · ${u.email}</div>
@@ -122,7 +132,7 @@ function renderLogTab(container) {
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div class="avatar" style="width:32px;height:32px;font-size:11px;">${initials(u.name)}</div>
+            ${avatarHtml(u, 32)}
             <div>
               <div style="font-size:14px;font-weight:700;">${u.name}</div>
               <div style="font-size:12px;color:var(--text-muted);">Check-in: ${r.checkInTime}</div>
@@ -173,7 +183,7 @@ function renderLeaderboardTab(container) {
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:8px;background:${isTop ? 'rgba(0,200,150,0.08)' : 'rgba(255,255,255,0.03)'};border:1px solid ${isTop ? 'rgba(0,200,150,0.2)' : 'rgba(255,255,255,0.07)'};border-radius:var(--radius-sm);">
               <div style="display:flex;align-items:center;gap:12px;">
                 <div style="font-size:24px;">${medals[i] || '🏅'}</div>
-                <div class="avatar ${item.u.sessionRate > 400 ? 'gold' : ''}">${initials(item.u.name)}</div>
+                ${avatarHtml(item.u, 36)}
                 <div>
                   <div style="font-size:14px;font-weight:800;">${item.u.name} ${isMostLate ? '<span style="font-size:11px;background:rgba(255,77,109,0.15);color:var(--red);padding:2px 6px;border-radius:6px;">😴 Most Late</span>' : ''}</div>
                   <div style="font-size:12px;color:var(--text-muted);">${item.ontimeSessions} on-time · ${item.totalLateMinutes}m total late</div>
@@ -196,51 +206,46 @@ function renderNotesTab(container) {
   listenToNotes((notes) => {
     const list = document.getElementById('admin-notes-list');
     if (!list) return;
-
     renderNotesBadge(notes);
-
     if (notes.length === 0) {
       list.innerHTML = `<div class="empty-state"><span class="icon">📭</span>No notes from coaches yet</div>`;
       return;
     }
-
-    list.innerHTML = notes.map(n => `
-      <div style="background:${n.read ? 'rgba(255,255,255,0.03)' : 'rgba(0,200,150,0.06)'};border:1px solid ${n.read ? 'rgba(255,255,255,0.07)' : 'rgba(0,200,150,0.2)'};border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div class="avatar" style="width:30px;height:30px;font-size:11px;">${initials(n.userName)}</div>
-            <div style="font-size:14px;font-weight:800;">${n.userName}</div>
+    list.innerHTML = notes.map(n => {
+      const u = USERS.find(u => u.id === n.userId);
+      return `
+        <div style="background:${n.read ? 'rgba(255,255,255,0.03)' : 'rgba(0,200,150,0.06)'};border:1px solid ${n.read ? 'rgba(255,255,255,0.07)' : 'rgba(0,200,150,0.2)'};border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${u ? avatarHtml(u, 30) : `<div class="avatar" style="width:30px;height:30px;font-size:11px;">${n.userName[0]}</div>`}
+              <div style="font-size:14px;font-weight:800;">${n.userName}</div>
+            </div>
+            <span class="badge ${n.read ? 'badge-green' : 'badge-yellow'}" style="${n.read ? '' : 'background:rgba(255,225,53,0.15);color:var(--yellow);'}">
+              ${n.read ? '✓ Read' : '🔔 New'}
+            </span>
           </div>
-          <span class="badge ${n.read ? 'badge-green' : 'badge-yellow'}" style="${n.read ? '' : 'background:rgba(255,225,53,0.15);color:var(--yellow);'}">
-            ${n.read ? '✓ Read' : '🔔 New'}
-          </span>
-        </div>
-        <div style="font-size:14px;color:var(--white);margin-bottom:8px;">${n.message}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">${formatNoteTime(n.timestamp)}</div>
-        <div style="display:flex;gap:8px;">
-          ${!n.read ? `<button class="btn btn-outline btn-sm" onclick="adminMarkRead('${n.id}')">✓ Mark as Read</button>` : ''}
-          <button class="btn btn-danger btn-sm" onclick="adminDeleteNote('${n.id}')">Delete</button>
-        </div>
-      </div>`).join('');
+          <div style="font-size:14px;color:var(--white);margin-bottom:8px;">${n.message}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">${formatNoteTime(n.timestamp)}</div>
+          <div style="display:flex;gap:8px;">
+            ${!n.read ? `<button class="btn btn-outline btn-sm" onclick="adminMarkRead('${n.id}')">✓ Mark as Read</button>` : ''}
+            <button class="btn btn-danger btn-sm" onclick="adminDeleteNote('${n.id}')">Delete</button>
+          </div>
+        </div>`;
+    }).join('');
   });
 }
 
-window.adminMarkRead = async function(noteId) {
-  await markNoteRead(noteId);
-}
-
+window.adminMarkRead = async function(noteId) { await markNoteRead(noteId); }
 window.adminDeleteNote = async function(noteId) {
   if (!confirm('Delete this note?')) return;
   await deleteNote(noteId);
 }
-
 window.adminRemoveEntry = function adminRemoveEntry(userId, date) {
   const u = getUser(userId);
   if (!confirm(`Remove attendance for ${u.name} on ${date}?`)) return;
   removeAttendance(userId, date);
   renderAdminPage();
 }
-
 window.changeAdminMonth = function changeAdminMonth(dir) {
   const [y, m] = adminMonthKey.split('-').map(Number);
   const d = new Date(y, m - 1 + dir, 1);
