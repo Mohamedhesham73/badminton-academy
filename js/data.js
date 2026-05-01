@@ -35,7 +35,7 @@ const USERS = [
   { id: 3, email: 'mahmoud@academy.com',         password: '1234',             name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3, isAdmin: false },
   { id: 4, email: 'Omarabdalkader1104@gmail.com',password: 'Zikoo1029&',       name: 'Omar Zakrie',             sessionRate: 383.3, isAdmin: false },
   { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE', name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3, isAdmin: false },
-  { id: 6, email: 'aboal7amd@academy.com',       password: '1234',             name: 'Abo AL7amd',              sessionRate: 541.6,   isAdmin: false },
+ { id: 6, email: 'aboal7amd@academy.com', password: '1234', name: 'Abo AL7amd', sessionRate: 541.67, isAdmin: false, customStart: { 1: { h: 18, m: 0 }, 3: { h: 18, m: 0 }, 6: { h: 17, m: 0 } } },
   { id: 7, email: 'admin@academy.com',           password: 'admin123',         name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,     isAdmin: true  },
 ];
 
@@ -88,7 +88,7 @@ function isWorkDay(date = new Date()) {
   return CONFIG.workDays.includes(date.getDay());
 }
 
-function calcLateMinutes(timeStr) {
+function calcLateMinutes(timeStr, userId) {
   let h, m;
   if (timeStr.includes('PM') || timeStr.includes('AM')) {
     const parts = timeStr.split(' ');
@@ -100,7 +100,15 @@ function calcLateMinutes(timeStr) {
     [h, m] = timeStr.split(':').map(Number);
   }
   const totalMins = h * 60 + m;
-  const startMins = CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
+
+  // Check if coach has custom start time for today
+  const user = getUser(userId);
+  const todayDay = new Date().getDay();
+  const customStart = user?.customStart?.[todayDay];
+  const startMins = customStart
+    ? customStart.h * 60 + customStart.m
+    : CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
+
   return Math.max(0, totalMins - startMins);
 }
 
@@ -137,7 +145,7 @@ function hasCheckedInToday(userId) {
 }
 
 async function addAttendance(userId, checkInTime) {
-  const lateMinutes = calcLateMinutes(checkInTime);
+  const lateMinutes = calcLateMinutes(checkInTime, userId);
   const deduction = calcDeduction(lateMinutes);
   const record = { userId, date: todayStr(), checkInTime, lateMinutes, deduction };
   attendance.push(record);
