@@ -1,5 +1,6 @@
 // ─── ADMIN PAGE ───
 import { CONFIG, USERS, attendance, removeAttendance, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
+import { listenToNotes, markNoteRead, deleteNote, formatNoteTime } from './notes.js';
 
 let adminActiveTab = 'overview';
 let adminMonthKey = getCurrentMonthKey();
@@ -8,6 +9,13 @@ export function renderAdminPage() {
   document.getElementById('admin-month-label').textContent = formatMonthLabel(adminMonthKey);
   renderAdminSummary();
   renderAdminTab(adminActiveTab);
+  listenToNotes(renderNotesBadge);
+}
+
+function renderNotesBadge(notes) {
+  const unread = notes.filter(n => !n.read).length;
+  const badge = document.getElementById('notes-tab-badge');
+  if (badge) badge.textContent = unread > 0 ? ` (${unread})` : '';
 }
 
 function renderAdminSummary() {
@@ -36,6 +44,7 @@ function renderAdminTab(tab) {
   if (tab === 'overview') renderOverviewTab(content);
   else if (tab === 'log') renderLogTab(content);
   else if (tab === 'leaderboard') renderLeaderboardTab(content);
+  else if (tab === 'notes') renderNotesTab(content);
 }
 
 function renderOverviewTab(container) {
@@ -143,7 +152,6 @@ function renderLogTab(container) {
 
 function renderLeaderboardTab(container) {
   const coaches = USERS.filter(u => !u.isAdmin);
-
   const stats = coaches.map(u => {
     const s = calcMonthlySummary(u.id, adminMonthKey);
     const totalLateMinutes = s.records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
@@ -151,12 +159,8 @@ function renderLeaderboardTab(container) {
     return { u, s, totalLateMinutes, ontimeSessions };
   });
 
-  // Sort by on time sessions desc, then by late minutes asc
   const ranked = [...stats].sort((a, b) => b.ontimeSessions - a.ontimeSessions || a.totalLateMinutes - b.totalLateMinutes);
-
-  // Most late
   const mostLate = [...stats].sort((a, b) => b.totalLateMinutes - a.totalLateMinutes)[0];
-
   const medals = ['🥇', '🥈', '🥉'];
 
   container.innerHTML = `
@@ -184,6 +188,50 @@ function renderLeaderboardTab(container) {
       </div>
     </div>
   `;
+}
+
+function renderNotesTab(container) {
+  container.innerHTML = `<div id="admin-notes-list" style="padding:0 16px;"></div>`;
+
+  listenToNotes((notes) => {
+    const list = document.getElementById('admin-notes-list');
+    if (!list) return;
+
+    renderNotesBadge(notes);
+
+    if (notes.length === 0) {
+      list.innerHTML = `<div class="empty-state"><span class="icon">📭</span>No notes from coaches yet</div>`;
+      return;
+    }
+
+    list.innerHTML = notes.map(n => `
+      <div style="background:${n.read ? 'rgba(255,255,255,0.03)' : 'rgba(0,200,150,0.06)'};border:1px solid ${n.read ? 'rgba(255,255,255,0.07)' : 'rgba(0,200,150,0.2)'};border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="avatar" style="width:30px;height:30px;font-size:11px;">${initials(n.userName)}</div>
+            <div style="font-size:14px;font-weight:800;">${n.userName}</div>
+          </div>
+          <span class="badge ${n.read ? 'badge-green' : 'badge-yellow'}" style="${n.read ? '' : 'background:rgba(255,225,53,0.15);color:var(--yellow);'}">
+            ${n.read ? '✓ Read' : '🔔 New'}
+          </span>
+        </div>
+        <div style="font-size:14px;color:var(--white);margin-bottom:8px;">${n.message}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">${formatNoteTime(n.timestamp)}</div>
+        <div style="display:flex;gap:8px;">
+          ${!n.read ? `<button class="btn btn-outline btn-sm" onclick="adminMarkRead('${n.id}')">✓ Mark as Read</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="adminDeleteNote('${n.id}')">Delete</button>
+        </div>
+      </div>`).join('');
+  });
+}
+
+window.adminMarkRead = async function(noteId) {
+  await markNoteRead(noteId);
+}
+
+window.adminDeleteNote = async function(noteId) {
+  if (!confirm('Delete this note?')) return;
+  await deleteNote(noteId);
 }
 
 window.adminRemoveEntry = function adminRemoveEntry(userId, date) {

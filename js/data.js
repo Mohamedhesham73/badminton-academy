@@ -191,7 +191,7 @@ function restoreSession() {
 }
 
 export {
-  CONFIG, USERS, attendance, currentUser,
+  db, CONFIG, USERS, attendance, currentUser,
   loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance,
   getUser, getUserByEmail, todayStr, isWorkDay,
   calcLateMinutes, calcDeduction, getLateStatus,

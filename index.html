@@ -80,6 +80,9 @@
     <div class="court-divider"></div>
     <div class="section-label">This Month's Attendance</div>
     <div id="coach-history"></div>
+    <div class="court-divider"></div>
+    <div class="section-label">Notes to Admin</div>
+    <div id="coach-notes"></div>
   </div>
 </div>
 
@@ -100,7 +103,7 @@
   <div class="page-content">
     <div class="month-bar">
       <button class="btn btn-outline btn-sm" style="width:auto;" onclick="changeAdminMonth(-1)">← Prev</button>
-      <div class="month-label" id="admin-month-label">April 2026</div>
+      <div class="month-label" id="admin-month-label">May 2026</div>
       <button class="btn btn-outline btn-sm" style="width:auto;" onclick="changeAdminMonth(1)">Next →</button>
     </div>
     <div class="admin-summary">
@@ -118,9 +121,10 @@
       </div>
     </div>
     <div class="tabs">
-      <div class="tab active" onclick="switchAdminTab('overview')">Coach Overview</div>
+      <div class="tab active" onclick="switchAdminTab('overview')">Overview</div>
       <div class="tab" onclick="switchAdminTab('log')">Full Log</div>
-      <div class="tab" onclick="switchAdminTab('leaderboard')">🏆 Leaderboard</div>
+      <div class="tab" onclick="switchAdminTab('leaderboard')">🏆</div>
+      <div class="tab" onclick="switchAdminTab('notes')">📝 Notes<span id="notes-tab-badge" style="color:var(--red);font-weight:800;"></span></div>
     </div>
     <div id="admin-tab-content"></div>
   </div>

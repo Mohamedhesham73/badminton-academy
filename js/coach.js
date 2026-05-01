@@ -1,5 +1,6 @@
 // ─── COACH PAGE ───
 import { CONFIG, USERS, attendance, currentUser, addAttendance, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeduction, getLateStatus, todayStr, isWorkDay, haversineMeters, formatDate, initials } from './data.js';
+import { sendNote, listenToMyNotes, formatNoteTime } from './notes.js';
 
 function to12h(hour, minute) {
   const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -107,6 +108,7 @@ export function renderCoachPage() {
   updateClock();
   setInterval(updateClock, 1000);
   renderCoachHistory(u.id, monthKey);
+  renderNotesSection(u);
 }
 
 function getClockColor(now) {
@@ -173,7 +175,7 @@ function renderCheckinArea() {
 
   const hour = now.getHours();
 
-  if (hour < 16) {
+  if (hour < CONFIG.checkinOpen.h) {
     area.innerHTML = `
       <div class="checkin-time">
         <div id="live-clock" class="checkin-clock">--:--:--</div>
@@ -274,7 +276,13 @@ function showCheckinError(msg) {
 
 window.doCheckin = function doCheckin() {
   const now = new Date();
-  const time = to12h(now.getHours(), now.getMinutes());
+  const startH = CONFIG.sessionStart.h;
+  const startM = CONFIG.sessionStart.m;
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = startH * 60 + startM;
+  const isEarly = nowMins <= startMins;
+  const time = isEarly ? to12h(startH, startM) : to12h(now.getHours(), now.getMinutes());
+
   const record = addAttendance(currentUser.id, time);
   const status = getLateStatus(record.lateMinutes);
 
@@ -323,4 +331,60 @@ function renderCoachHistory(userId, monthKey) {
         </div>
       </div>`;
   }).join('');
+}
+
+// ─── NOTES SECTION ───
+function renderNotesSection(u) {
+  const container = document.getElementById('coach-notes');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="card" style="margin:0 16px 16px;">
+      <div style="font-size:13px;font-weight:800;color:var(--green);margin-bottom:12px;letter-spacing:1px;">📝 SEND A NOTE TO ADMIN</div>
+      <textarea id="note-input" placeholder="e.g. I'll be 15 mins late on Saturday..." style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:var(--radius-sm);color:var(--white);font-family:'Nunito',sans-serif;font-size:14px;resize:none;height:80px;"></textarea>
+      <button class="btn btn-green" style="margin-top:10px;" onclick="submitNote()">Send Note ✉️</button>
+      <div id="note-status" style="margin-top:8px;font-size:13px;"></div>
+    </div>
+    <div id="my-notes-list" style="margin:0 16px;"></div>
+  `;
+
+  listenToMyNotes(u.id, (notes) => {
+    const list = document.getElementById('my-notes-list');
+    if (!list) return;
+    if (notes.length === 0) {
+      list.innerHTML = `<div class="empty-state"><span class="icon">📭</span>No notes sent yet</div>`;
+      return;
+    }
+    list.innerHTML = notes.map(n => `
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px;">
+        <div style="font-size:14px;color:var(--white);margin-bottom:6px;">${n.message}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:11px;color:var(--text-muted);">${formatNoteTime(n.timestamp)}</div>
+          <span class="badge ${n.read ? 'badge-green' : 'badge-yellow'}" style="${n.read ? '' : 'background:rgba(255,225,53,0.15);color:var(--yellow);'}">
+            ${n.read ? '✓ Seen' : '⏳ Pending'}
+          </span>
+        </div>
+      </div>`).join('');
+  });
+}
+
+window.submitNote = async function() {
+  const input = document.getElementById('note-input');
+  const status = document.getElementById('note-status');
+  const msg = input.value.trim();
+  if (!msg) { status.textContent = '⚠ Please write a message first!'; status.style.color = 'var(--orange)'; return; }
+
+  status.textContent = 'Sending...';
+  status.style.color = 'var(--text-muted)';
+
+  const success = await sendNote(currentUser.id, currentUser.name, msg);
+  if (success) {
+    input.value = '';
+    status.textContent = '✅ Note sent to admin!';
+    status.style.color = 'var(--green)';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  } else {
+    status.textContent = '❌ Failed to send. Try again.';
+    status.style.color = 'var(--red)';
+  }
 }
