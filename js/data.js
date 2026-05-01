@@ -183,17 +183,17 @@ function login(email, password) {
   const user = getUserByEmail(email);
   if (!user || user.password !== password) return null;
   currentUser = user;
-  sessionStorage.setItem('academy_user', user.id);
+  localStorage.setItem('academy_user', user.id);
   return user;
 }
 
 function logout() {
   currentUser = null;
-  sessionStorage.removeItem('academy_user');
+  localStorage.removeItem('academy_user');
 }
 
 function restoreSession() {
-  const id = sessionStorage.getItem('academy_user');
+  const id = localStorage.getItem('academy_user');
   if (id) currentUser = USERS.find(u => u.id === parseInt(id)) || null;
   return currentUser;
 }
