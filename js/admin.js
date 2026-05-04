@@ -16,6 +16,22 @@ function avatarHtml(user, size = 36) {
   return `<div class="avatar ${user.sessionRate > 400 ? 'gold' : ''}" style="width:${size}px;height:${size}px;font-size:${fontSize}px;">${initials(user.name)}</div>`;
 }
 
+// ─── GET PAST WORKING DAYS IN MONTH ───
+function getPastWorkingDaysInMonth(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  const today = new Date();
+  const days = [];
+  const d = new Date(y, m - 1, 1);
+  while (d.getMonth() === m - 1) {
+    const copy = new Date(d);
+    if (CONFIG.workDays.includes(copy.getDay()) && copy < today) {
+      days.push(copy.toISOString().split('T')[0]);
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return days;
+}
+
 export function renderAdminPage() {
   document.getElementById('admin-month-label').textContent = formatMonthLabel(adminMonthKey);
   renderAdminSummary();
@@ -98,17 +114,25 @@ function renderOverviewTab(container) {
 }
 
 function renderLogTab(container) {
+  const coaches = USERS.filter(u => !u.isAdmin);
   const monthRecords = attendance.filter(a => getMonthKey(a.date) === adminMonthKey);
+  const pastWorkingDays = getPastWorkingDaysInMonth(adminMonthKey);
 
-  if (monthRecords.length === 0) {
+  if (pastWorkingDays.length === 0 && monthRecords.length === 0) {
     container.innerHTML = `<div class="empty-state"><span class="icon">📋</span>No records for this month</div>`;
     return;
   }
 
+  // Group check-ins by date
   const byDate = {};
   monthRecords.forEach(r => {
     if (!byDate[r.date]) byDate[r.date] = [];
     byDate[r.date].push(r);
+  });
+
+  // Add past working days with no records
+  pastWorkingDays.forEach(date => {
+    if (!byDate[date]) byDate[date] = [];
   });
 
   const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
@@ -120,7 +144,11 @@ function renderLogTab(container) {
     const totalPresent = records.length;
     const totalDeductions = records.reduce((s, r) => s + (r.deduction || 0), 0);
 
-    const rows = records.map(r => {
+    // Find absent coaches
+    const presentIds = records.map(r => r.userId);
+    const absentCoaches = coaches.filter(u => !presentIds.includes(u.id));
+
+    const presentRows = records.map(r => {
       const u = getUser(r.userId);
       const status = getLateStatus(r.lateMinutes);
       const statusBadge = {
@@ -146,16 +174,34 @@ function renderLogTab(container) {
         </div>`;
     }).join('');
 
+    const absentRows = absentCoaches.map(u => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);opacity:0.7;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${avatarHtml(u, 32)}
+          <div>
+            <div style="font-size:14px;font-weight:700;">${u.name}</div>
+            <div style="font-size:12px;color:var(--text-muted);">Did not check in</div>
+          </div>
+        </div>
+        <span class="badge badge-red">❌ Absent</span>
+      </div>`).join('');
+
     return `
       <div style="margin:0 16px 16px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
         <div style="background:rgba(0,200,150,0.08);border-bottom:1px solid rgba(0,200,150,0.15);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--green);">📅 ${dayLabel}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${totalPresent} coach${totalPresent !== 1 ? 'es' : ''} checked in${totalDeductions > 0 ? ` · ${totalDeductions.toFixed(1)} EGP deducted` : ''}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+              ${totalPresent} present · ${absentCoaches.length} absent
+              ${totalDeductions > 0 ? ` · ${totalDeductions.toFixed(1)} EGP deducted` : ''}
+            </div>
           </div>
-          <span class="badge badge-green">${totalPresent} / ${USERS.filter(u => !u.isAdmin).length}</span>
+          <span class="badge badge-green">${totalPresent} / ${coaches.length}</span>
         </div>
-        <div style="background:rgba(255,255,255,0.02);">${rows}</div>
+        <div style="background:rgba(255,255,255,0.02);">
+          ${presentRows}
+          ${absentRows}
+        </div>
       </div>`;
   }).join('');
 }
