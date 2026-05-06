@@ -16,7 +16,7 @@ function avatarHtml(user, size = 36) {
   return `<div class="avatar ${user.sessionRate > 400 ? 'gold' : ''}" style="width:${size}px;height:${size}px;font-size:${fontSize}px;">${initials(user.name)}</div>`;
 }
 
-// ─── GET PAST WORKING DAYS IN MONTH (Sat/Mon/Wed only) ───
+// ─── GET PAST WORKING DAYS IN MONTH (Sat/Mon/Wed ONLY) ───
 function getPastWorkingDaysInMonth(monthKey) {
   const [y, m] = monthKey.split('-').map(Number);
   const today = new Date();
@@ -26,6 +26,7 @@ function getPastWorkingDaysInMonth(monthKey) {
   while (d.getMonth() === m - 1) {
     const copy = new Date(d);
     copy.setHours(0, 0, 0, 0);
+    // Only Saturday(6), Monday(1), Wednesday(3)
     if (CONFIG.workDays.includes(copy.getDay()) && copy < today) {
       days.push(copy.toISOString().split('T')[0]);
     }
@@ -42,12 +43,9 @@ function calcMonthlySummaryWithAbsences(userId, monthKey) {
   const daysPresent = records.length;
   const baseSalary = user.sessionRate * CONFIG.sessionsPerMonth;
   const lateDeductions = records.reduce((s, r) => s + (r.deduction || 0), 0);
-
-  // Count absent days and deduct full session rate per absence
   const presentDates = records.map(r => r.date);
   const absentDays = pastWorkingDays.filter(d => !presentDates.includes(d)).length;
   const absenceDeductions = absentDays * user.sessionRate;
-
   const totalDeductions = lateDeductions + absenceDeductions;
   const netSalary = baseSalary - totalDeductions;
   return { daysPresent, baseSalary, totalDeductions, lateDeductions, absenceDeductions, absentDays, netSalary, records };
@@ -140,27 +138,26 @@ function renderOverviewTab(container) {
 
 function renderLogTab(container) {
   const coaches = USERS.filter(u => !u.isAdmin);
-  const monthRecords = attendance.filter(a => getMonthKey(a.date) === adminMonthKey);
   const pastWorkingDays = getPastWorkingDaysInMonth(adminMonthKey);
+  const monthRecords = attendance.filter(a => getMonthKey(a.date) === adminMonthKey);
 
-  if (pastWorkingDays.length === 0 && monthRecords.length === 0) {
-    container.innerHTML = `<div class="empty-state"><span class="icon">📋</span>No records for this month</div>`;
+  if (pastWorkingDays.length === 0) {
+    container.innerHTML = `<div class="empty-state"><span class="icon">📋</span>No working days have passed this month yet</div>`;
     return;
   }
 
+  // Start with only working days
   const byDate = {};
+  pastWorkingDays.forEach(date => {
+    byDate[date] = [];
+  });
 
-// Only add working days
-pastWorkingDays.forEach(date => {
-  byDate[date] = [];
-});
-
-// Add records but only for working days
-monthRecords.forEach(r => {
-  if (byDate[r.date] !== undefined) {
-    byDate[r.date].push(r);
-  }
-});
+  // Add attendance records only for working days
+  monthRecords.forEach(r => {
+    if (byDate[r.date] !== undefined) {
+      byDate[r.date].push(r);
+    }
+  });
 
   const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
@@ -170,7 +167,6 @@ monthRecords.forEach(r => {
     const dayLabel = dayDate.toLocaleDateString('en-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const totalPresent = records.length;
     const totalDeductions = records.reduce((s, r) => s + (r.deduction || 0), 0);
-
     const presentIds = records.map(r => r.userId);
     const absentCoaches = coaches.filter(u => !presentIds.includes(u.id));
 
@@ -182,7 +178,6 @@ monthRecords.forEach(r => {
         late:      `<span class="badge badge-orange">+${r.lateMinutes}m late</span>`,
         superlate: `<span class="badge badge-red">+${r.lateMinutes}m late 💀</span>`
       }[status];
-
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);">
           <div style="display:flex;align-items:center;gap:10px;">
@@ -240,11 +235,9 @@ function renderLeaderboardTab(container) {
     const ontimeSessions = s.records.filter(r => r.lateMinutes === 0).length;
     return { u, s, totalLateMinutes, ontimeSessions };
   });
-
   const ranked = [...stats].sort((a, b) => b.ontimeSessions - a.ontimeSessions || a.totalLateMinutes - b.totalLateMinutes);
   const mostLate = [...stats].sort((a, b) => b.totalLateMinutes - a.totalLateMinutes)[0];
   const medals = ['🥇', '🥈', '🥉'];
-
   container.innerHTML = `
     <div style="padding:0 16px 16px;">
       <div style="margin-bottom:16px;">
@@ -268,8 +261,7 @@ function renderLeaderboardTab(container) {
             </div>`;
         }).join('')}
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 function renderNotesTab(container) {
