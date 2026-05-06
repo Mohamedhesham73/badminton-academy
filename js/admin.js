@@ -237,7 +237,11 @@ function renderLeaderboardTab(container) {
     const ontimeSessions = s.records.filter(r => r.lateMinutes === 0).length;
     return { u, s, totalLateMinutes, ontimeSessions };
   });
-  const ranked = [...stats].sort((a, b) => b.ontimeSessions - a.ontimeSessions || a.totalLateMinutes - b.totalLateMinutes);
+  const ranked = [...stats].sort((a, b) => 
+  b.ontimeSessions - a.ontimeSessions ||      // Most on-time first
+  a.s.absentDays - b.s.absentDays ||          // Fewer absences first
+  a.totalLateMinutes - b.totalLateMinutes      // Less late time first
+);
   const mostLate = [...stats].sort((a, b) => b.totalLateMinutes - a.totalLateMinutes)[0];
   const medals = ['🥇', '🥈', '🥉'];
   container.innerHTML = `
