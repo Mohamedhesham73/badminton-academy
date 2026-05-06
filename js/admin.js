@@ -22,15 +22,17 @@ function getPastWorkingDaysInMonth(monthKey) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = [];
-  const d = new Date(y, m - 1, 1);
-  while (d.getMonth() === m - 1) {
-    const copy = new Date(d);
-    copy.setHours(0, 0, 0, 0);
-    // Only Saturday(6), Monday(1), Wednesday(3)
-    if (CONFIG.workDays.includes(copy.getDay()) && copy < today) {
-      days.push(copy.toISOString().split('T')[0]);
+  const lastDay = new Date(y, m, 0).getDate();
+  for (let day = 1; day <= lastDay; day++) {
+    const d = new Date(y, m - 1, day);
+    d.setHours(0, 0, 0, 0);
+    if (CONFIG.workDays.includes(d.getDay()) && d < today) {
+      // Build date string manually to avoid timezone issues
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      days.push(`${yyyy}-${mm}-${dd}`);
     }
-    d.setDate(d.getDate() + 1);
   }
   return days;
 }
