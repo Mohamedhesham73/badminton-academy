@@ -149,14 +149,18 @@ function renderLogTab(container) {
   }
 
   const byDate = {};
-  monthRecords.forEach(r => {
-    if (!byDate[r.date]) byDate[r.date] = [];
-    byDate[r.date].push(r);
-  });
 
-  pastWorkingDays.forEach(date => {
-    if (!byDate[date]) byDate[date] = [];
-  });
+// Only add working days
+pastWorkingDays.forEach(date => {
+  byDate[date] = [];
+});
+
+// Add records but only for working days
+monthRecords.forEach(r => {
+  if (byDate[r.date] !== undefined) {
+    byDate[r.date].push(r);
+  }
+});
 
   const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 

@@ -171,7 +171,7 @@ function showRestrictions() {
           rules: [
             'Coaches must remain on the court or designated coaching areas during sessions.',
             'Sitting or resting in the restrooms during sessions is strictly prohibited.',
-            'Sitting or gathering in the kiosk (koshk) area during sessions is not permitted.',
+            'Sitting or gathering in the (koshk) area during sessions is not permitted.',
             'Professional conduct must be maintained at all times with players, staff, and management.',
           ]
         },
