@@ -1,5 +1,5 @@
 // ─── COACH PAGE ───
-import { CONFIG, USERS, attendance, currentUser, addAttendance, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeduction, getLateStatus, todayStr, isWorkDay, haversineMeters, formatDate, initials } from './data.js';
+import { CONFIG, USERS, attendance, currentUser, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials } from './data.js';
 import { sendNote, listenToMyNotes, formatNoteTime } from './notes.js';
 
 function to12h(hour, minute) {
@@ -9,13 +9,6 @@ function to12h(hour, minute) {
   return h + ':' + m + ' ' + ampm;
 }
 
-function getCoachStartTime(user) {
-  const todayDay = new Date().getDay();
-  const custom = user?.customStart?.[todayDay];
-  return custom || CONFIG.sessionStart;
-}
-
-// ─── QUOTES ───
 const QUOTES = [
   "You're here. That's already half the battle. 💪",
   "Champions train, losers complain. 🏆",
@@ -29,44 +22,25 @@ const QUOTES = [
   "You came. You're already winning. 🎉",
 ];
 
-function getDailyQuote() {
-  const idx = new Date().getDate() % QUOTES.length;
-  return QUOTES[idx];
-}
+function getDailyQuote() { return QUOTES[new Date().getDate() % QUOTES.length]; }
 
-// ─── CONFETTI ───
 function launchConfetti() {
   const colors = ['#00C896', '#FFE135', '#ff4d6d', '#ffffff', '#00a8ff'];
   for (let i = 0; i < 80; i++) {
     setTimeout(() => {
       const el = document.createElement('div');
-      el.style.cssText = `
-        position:fixed;top:-10px;
-        left:${Math.random() * 100}vw;
-        width:${6 + Math.random() * 8}px;height:${6 + Math.random() * 8}px;
-        background:${colors[Math.floor(Math.random() * colors.length)]};
-        border-radius:${Math.random() > 0.5 ? '50%' : '2px'};
-        z-index:9999;pointer-events:none;
-        animation:confettiFall ${1.5 + Math.random() * 2}s ease-in forwards;
-        transform:rotate(${Math.random() * 360}deg);
-      `;
+      el.style.cssText = `position:fixed;top:-10px;left:${Math.random()*100}vw;width:${6+Math.random()*8}px;height:${6+Math.random()*8}px;background:${colors[Math.floor(Math.random()*colors.length)]};border-radius:${Math.random()>0.5?'50%':'2px'};z-index:9999;pointer-events:none;animation:confettiFall ${1.5+Math.random()*2}s ease-in forwards;transform:rotate(${Math.random()*360}deg);`;
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 4000);
     }, i * 30);
   }
 }
 
-// ─── SOUNDS (code-generated, no files needed) ───
 function playSound(type) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const gain = ctx.createGain();
-    gain.connect(ctx.destination);
-
     if (type === 'ontime') {
-      // Happy victory fanfare
-      const notes = [523, 659, 784, 1047];
-      notes.forEach((freq, i) => {
+      [523, 659, 784, 1047].forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
         osc.connect(g); g.connect(ctx.destination);
@@ -79,7 +53,6 @@ function playSound(type) {
         osc.stop(ctx.currentTime + i * 0.12 + 0.3);
       });
     } else if (type === 'late') {
-      // Warning tone
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
       osc.connect(g); g.connect(ctx.destination);
@@ -88,10 +61,8 @@ function playSound(type) {
       osc.frequency.linearRampToValueAtTime(330, ctx.currentTime + 0.3);
       g.gain.setValueAtTime(0.2, ctx.currentTime);
       g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.5);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.5);
     } else if (type === 'superlate') {
-      // Alarm/buzzer sound
       [0, 0.25, 0.5].forEach(t => {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
@@ -100,14 +71,22 @@ function playSound(type) {
         osc.frequency.value = 180;
         g.gain.setValueAtTime(0.25, ctx.currentTime + t);
         g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.2);
-        osc.start(ctx.currentTime + t);
-        osc.stop(ctx.currentTime + t + 0.2);
+        osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.2);
       });
+    } else if (type === 'checkout') {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(660, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.3);
+      g.gain.setValueAtTime(0.2, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
     }
   } catch(e) {}
 }
 
-// ─── STREAK ───
 function getStreak(userId) {
   const records = attendance.filter(a => a.userId === userId).sort((a,b) => b.date.localeCompare(a.date));
   if (records.length === 0) return 0;
@@ -122,19 +101,12 @@ function getStreak(userId) {
   return streak;
 }
 
-// ─── RESTRICTIONS MODAL ───
 function showRestrictions() {
   const existing = document.getElementById('restrictions-modal');
   if (existing) { existing.remove(); return; }
-
   const modal = document.createElement('div');
   modal.id = 'restrictions-modal';
-  modal.style.cssText = `
-    position:fixed;inset:0;z-index:9998;
-    background:rgba(10,22,40,0.97);
-    overflow-y:auto;padding:24px 16px;
-    animation:fadeIn 0.25s ease;
-  `;
+  modal.style.cssText = `position:fixed;inset:0;z-index:9998;background:rgba(10,22,40,0.97);overflow-y:auto;padding:24px 16px;animation:fadeIn 0.25s ease;`;
   modal.innerHTML = `
     <div style="max-width:480px;margin:0 auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
@@ -144,46 +116,31 @@ function showRestrictions() {
         </div>
         <button onclick="document.getElementById('restrictions-modal').remove()" style="background:rgba(255,255,255,0.08);border:none;color:var(--white);font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;">×</button>
       </div>
-
       ${[
-        {
-          icon: '📅',
-          title: 'Attendance & Absence',
-          rules: [
-            'Coaches must check in via the app upon arrival at the academy.',
-            'Absence without prior notice (before 2:00 PM on the working day) will be counted as TWO absent sessions, not one.',
-            'To report an absence or lateness, send a note to the admin before 2:00 PM on the working day.',
-          ]
-        },
-        {
-          icon: '⏰',
-          title: 'Session Timing',
-          rules: [
-            'Sessions run from 5:00 PM to 9:00 PM (Saturday, Monday, Wednesday).',
-            'Check-in opens at 4:00 PM. Arriving before 5:00 PM is recorded as on time.',
-            'Late arrival deductions: 100 EGP per hour, calculated by the minute starting from 5:01 PM.',
-            'Coaches are entitled to one break of 15–30 minutes between 7:30 PM and 8:00 PM only.',
-          ]
-        },
-        {
-          icon: '🚫',
-          title: 'Code of Conduct',
-          rules: [
-            'Coaches must remain on the court or designated coaching areas during sessions.',
-            'Sitting or resting in the restrooms during sessions is strictly prohibited.',
-            'Sitting or gathering in the (koshk) area during sessions is not permitted.',
-            'Professional conduct must be maintained at all times with players, staff, and management.',
-          ]
-        },
-        {
-          icon: '💰',
-          title: 'Salary & Deductions',
-          rules: [
-            'Monthly salary is based on 12 fixed sessions regardless of calendar variations.',
-            'Late arrival and absence deductions are calculated automatically by the system.',
-            'Deductions are visible to the admin and reflected in the monthly net salary.',
-          ]
-        },
+        { icon: '📅', title: 'Attendance & Absence', rules: [
+          'Coaches must check in via the app upon arrival at the academy.',
+          'Coaches must check out via the app when leaving the academy.',
+          'Absence without prior notice (before 2:00 PM on the working day) will be counted as TWO absent sessions, not one.',
+          'To report an absence or lateness, send a note to the admin before 2:00 PM on the working day.',
+        ]},
+        { icon: '⏰', title: 'Session Timing', rules: [
+          'Sessions run from 5:00 PM to 9:00 PM (Saturday, Monday, Wednesday).',
+          'Check-in opens at 4:00 PM. Arriving before 5:00 PM is recorded as on time.',
+          'Late arrival deductions are calculated by the minute at the coach\'s hourly rate.',
+          'Leaving early before 9:00 PM results in deductions calculated by the minute at the coach\'s hourly rate.',
+          'Coaches are entitled to one break of 15–30 minutes between 7:30 PM and 8:00 PM only.',
+        ]},
+        { icon: '🚫', title: 'Code of Conduct', rules: [
+          'Coaches must remain on the court or designated coaching areas during sessions.',
+          'Sitting or resting in the restrooms during sessions is strictly prohibited.',
+          'Sitting or gathering in the (koshk) area during sessions is not permitted.',
+          'Professional conduct must be maintained at all times with players, staff, and management.',
+        ]},
+        { icon: '💰', title: 'Salary & Deductions', rules: [
+          'Monthly salary is based on 12 fixed sessions regardless of calendar variations.',
+          'Late arrival, early leave, and absence deductions are calculated automatically by the system.',
+          'Deductions are visible to the admin and reflected in the monthly net salary.',
+        ]},
       ].map(section => `
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;">
           <div style="font-size:15px;font-weight:800;color:var(--green);margin-bottom:10px;">${section.icon} ${section.title}</div>
@@ -193,14 +150,12 @@ function showRestrictions() {
               <span>${r}</span>
             </div>`).join('')}
         </div>`).join('')}
-
-      <div style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:16px;">
-        These rules are set by Disha Hall Academy management.<br/>More rules may be added in the future.
-      </div>
-    </div>
-  `;
+      <div style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:16px;">These rules are set by Disha Hall Academy management.<br/>More rules may be added in the future.</div>
+    </div>`;
   document.body.appendChild(modal);
 }
+
+window.showRestrictions = showRestrictions;
 
 export function renderCoachPage() {
   const u = currentUser;
@@ -236,8 +191,6 @@ export function renderCoachPage() {
   renderCoachHistory(u.id, monthKey);
   renderNotesSection(u);
 }
-
-window.showRestrictions = showRestrictions;
 
 function getClockColor(now) {
   const totalMins = now.getHours() * 60 + now.getMinutes();
@@ -277,10 +230,14 @@ function renderCheckinArea() {
   const u = currentUser;
   const now = new Date();
   const area = document.getElementById('checkin-area');
-  const alreadyIn = hasCheckedInToday(u.id);
+  const todayRecord = hasCheckedInToday(u.id);
   const workDay = isWorkDay(now);
 
-  if (alreadyIn) { renderReaction(area, alreadyIn, getLateStatus(alreadyIn.lateMinutes)); return; }
+  // If checked in already
+  if (todayRecord) {
+    renderReaction(area, todayRecord, getLateStatus(todayRecord.lateMinutes));
+    return;
+  }
 
   if (!workDay) {
     area.innerHTML = `
@@ -291,7 +248,6 @@ function renderCheckinArea() {
   }
 
   const hour = now.getHours();
-
   if (hour < CONFIG.checkinOpen.h) {
     area.innerHTML = `
       <div class="checkin-time"><div id="live-clock" class="checkin-clock">--:--:--</div><div id="live-date" class="checkin-date-str"></div></div>
@@ -320,7 +276,7 @@ function renderCheckinArea() {
     ${countdown ? `<div style="text-align:center;margin-bottom:10px;"><span class="badge badge-yellow" style="background:rgba(255,225,53,0.15);color:var(--yellow);">${countdown}</span></div>` : ''}
     ${lateBy > 0 ? `
       <div style="text-align:center;margin-bottom:12px;">
-        <span class="${lateBy >= 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeduction(lateBy).toFixed(1)} EGP deduction</span>
+        <span class="${lateBy >= 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeductionForUser(lateBy, u.id).toFixed(1)} EGP deduction</span>
       </div>` : `
       <div style="text-align:center;margin-bottom:12px;">
         <span class="badge badge-green">🟢 On time — session starts ${startLabel}</span>
@@ -332,12 +288,50 @@ function renderCheckinArea() {
 }
 
 function renderReaction(container, record, status) {
+  const u = currentUser;
   const reactions = {
     ontime:    { img: 'imgs/WhatsApp Sticker 1', title: "YOU'RE ON TIME!", msg: 'Perfect! Full session salary recorded.', cls: 'on-time' },
-    late:      { img: 'imgs/WhatsApp Sticker 2', title: 'A BIT LATE...',   msg: `${record.lateMinutes} min late — ${record.deduction.toFixed(1)} EGP deducted`, cls: 'late' },
-    superlate: { img: 'imgs/WhatsApp Sticker',   title: 'SUPER LATE! 😂',  msg: `${record.lateMinutes} min late — ${record.deduction.toFixed(1)} EGP deducted. BRO WAKE UP!`, cls: 'super-late' }
+    late:      { img: 'imgs/WhatsApp Sticker 2', title: 'A BIT LATE...',   msg: `${record.lateMinutes} min late — ${(record.lateDeduction || record.deduction || 0).toFixed(1)} EGP deducted`, cls: 'late' },
+    superlate: { img: 'imgs/WhatsApp Sticker',   title: 'SUPER LATE! 😂',  msg: `${record.lateMinutes} min late — ${(record.lateDeduction || record.deduction || 0).toFixed(1)} EGP deducted. BRO WAKE UP!`, cls: 'super-late' }
   };
   const r = reactions[status];
+  const now = new Date();
+  const hour = now.getHours();
+  const isWorkingDay = CONFIG.workDays.includes(now.getDay());
+  const sessionEndH = CONFIG.sessionEnd.h;
+
+  // Show checkout button only on working day during session hours (5 PM – 9 PM)
+  const canCheckOut = !record.checkOutTime && isWorkingDay && hour >= 17 && hour < sessionEndH;
+
+  let checkoutHtml = '';
+  if (record.checkOutTime) {
+    const out = record.checkOutTime;
+    const earlyMins = record.earlyLeaveMinutes || 0;
+    const earlyDed = record.earlyLeaveDeduction || 0;
+    if (earlyMins > 0) {
+      checkoutHtml = `
+        <div style="margin-top:14px;padding:12px;background:rgba(255,77,109,0.08);border:1px solid rgba(255,77,109,0.2);border-radius:10px;text-align:center;">
+          <div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:4px;">🚪 Checked out at ${out}</div>
+          <div style="font-size:12px;color:var(--text-muted);">Left ${earlyMins} min early — ${earlyDed.toFixed(1)} EGP deducted</div>
+        </div>`;
+    } else {
+      checkoutHtml = `
+        <div style="margin-top:14px;padding:12px;background:rgba(0,200,150,0.08);border:1px solid rgba(0,200,150,0.2);border-radius:10px;text-align:center;">
+          <div style="font-size:13px;font-weight:800;color:var(--green);">✅ Checked out at ${out} — Full session!</div>
+        </div>`;
+    }
+  } else if (canCheckOut) {
+    checkoutHtml = `
+      <button class="btn btn-outline" style="margin-top:14px;border-color:var(--orange);color:var(--orange);" onclick="attemptCheckout()">🚪 Check Out</button>
+      <p style="text-align:center;font-size:11px;color:var(--text-muted);margin-top:6px;">Use only if leaving before 09:00 PM</p>
+      <div id="checkout-status" style="margin-top:8px;"></div>`;
+  } else if (!record.checkOutTime && isWorkingDay && hour >= sessionEndH) {
+    checkoutHtml = `
+      <div style="margin-top:14px;padding:10px;background:rgba(0,200,150,0.06);border:1px solid rgba(0,200,150,0.15);border-radius:10px;text-align:center;font-size:12px;color:var(--green);">
+        ✅ Session complete — assumed full session attended
+      </div>`;
+  }
+
   container.innerHTML = `
     <div class="checkin-time"><div id="live-clock" class="checkin-clock">--:--:--</div><div id="live-date" class="checkin-date-str"></div></div>
     <div class="reaction-box ${r.cls}">
@@ -345,6 +339,7 @@ function renderReaction(container, record, status) {
       <div class="reaction-title">${r.title}</div>
       <div class="reaction-msg">${r.msg}</div>
       <div style="margin-top:10px;font-size:13px;color:var(--text-muted);">Checked in at ${record.checkInTime}</div>
+      ${checkoutHtml}
     </div>
   `;
 }
@@ -364,6 +359,63 @@ window.attemptCheckin = function() {
   );
 }
 
+window.attemptCheckout = function() {
+  const btn = document.querySelector('.reaction-box .btn-outline');
+  if (btn) { btn.textContent = '📡 Getting location...'; btn.disabled = true; }
+  if (!navigator.geolocation) { showCheckoutError('Geolocation not supported.'); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const dist = haversineMeters(pos.coords.latitude, pos.coords.longitude, CONFIG.academyLat, CONFIG.academyLng);
+      if (dist <= CONFIG.geofenceMeters) {
+        showCheckoutConfirm();
+      } else {
+        showCheckoutError(`You are ${Math.round(dist)}m from the academy. Must be within ${CONFIG.geofenceMeters}m.`);
+      }
+    },
+    err => showCheckoutError('Location access denied. Please enable location and try again.'),
+    { timeout: 8000 }
+  );
+}
+
+function showCheckoutConfirm() {
+  const status = document.getElementById('checkout-status');
+  if (!status) return;
+  const btn = document.querySelector('.reaction-box .btn-outline');
+  if (btn) btn.style.display = 'none';
+  status.innerHTML = `
+    <div style="background:rgba(255,77,109,0.08);border:1px solid rgba(255,77,109,0.25);border-radius:10px;padding:12px;text-align:center;">
+      <div style="font-size:13px;color:var(--red);margin-bottom:10px;font-weight:700;">⚠ Are you sure you want to leave early?</div>
+      <div style="display:flex;gap:8px;justify-content:center;">
+        <button class="btn btn-danger" style="width:auto;" onclick="confirmCheckout()">Yes, check out</button>
+        <button class="btn btn-outline btn-sm" style="width:auto;" onclick="cancelCheckout()">Cancel</button>
+      </div>
+    </div>`;
+}
+
+window.cancelCheckout = function() {
+  const status = document.getElementById('checkout-status');
+  if (status) status.innerHTML = '';
+  const btn = document.querySelector('.reaction-box .btn-outline');
+  if (btn) { btn.style.display = ''; btn.textContent = '🚪 Check Out'; btn.disabled = false; }
+}
+
+window.confirmCheckout = async function() {
+  const now = new Date();
+  const time = to12h(now.getHours(), now.getMinutes());
+  const updated = await checkOutCoach(currentUser.id, time);
+  if (updated) {
+    playSound('checkout');
+    renderCheckinArea();
+  }
+}
+
+function showCheckoutError(msg) {
+  const btn = document.querySelector('.reaction-box .btn-outline');
+  if (btn) { btn.textContent = '🚪 Check Out'; btn.disabled = false; }
+  const status = document.getElementById('checkout-status');
+  if (status) status.innerHTML = `<div style="background:rgba(255,77,109,0.1);border:1px solid rgba(255,77,109,0.25);border-radius:10px;padding:12px;font-size:13px;color:var(--red);">❌ ${msg}</div>`;
+}
+
 function showCheckinError(msg) {
   const btn = document.querySelector('#checkin-area .btn-green');
   if (btn) { btn.textContent = '🏸 Check In Now'; btn.disabled = false; }
@@ -371,7 +423,7 @@ function showCheckinError(msg) {
   if (statusEl) statusEl.innerHTML = `<div style="background:rgba(255,77,109,0.1);border:1px solid rgba(255,77,109,0.25);border-radius:10px;padding:12px;font-size:13px;color:var(--red);">❌ ${msg}</div>`;
 }
 
-window.doCheckin = function() {
+window.doCheckin = async function() {
   const now = new Date();
   const u = currentUser;
   const startTime = getCoachStartTime(u);
@@ -379,7 +431,7 @@ window.doCheckin = function() {
   const startMins = startTime.h * 60 + startTime.m;
   const isEarly = nowMins <= startMins;
   const time = isEarly ? to12h(startTime.h, startTime.m) : to12h(now.getHours(), now.getMinutes());
-  const record = addAttendance(u.id, time);
+  const record = await addAttendance(u.id, time);
   const status = getLateStatus(record.lateMinutes);
   const monthKey = getCurrentMonthKey();
   const summary = calcMonthlySummary(u.id, monthKey);
@@ -395,6 +447,8 @@ window.doCheckin = function() {
   renderCoachHistory(u.id, monthKey);
 }
 
+function doCheckin() { return window.doCheckin(); }
+
 function renderCoachHistory(userId, monthKey) {
   const container = document.getElementById('coach-history');
   const records = getMonthAttendance(userId, monthKey).sort((a,b) => b.date.localeCompare(a.date));
@@ -409,12 +463,19 @@ function renderCoachHistory(userId, monthKey) {
       late:      `<span class="badge badge-orange">+${r.lateMinutes}m late</span>`,
       superlate: `<span class="badge badge-red">+${r.lateMinutes}m late 💀</span>`
     };
+    const lateDed = r.lateDeduction || r.deduction || 0;
+    const earlyDed = r.earlyLeaveDeduction || 0;
+    const totalDed = lateDed + earlyDed;
     return `
       <div class="attendance-row fade-in">
-        <div><div class="att-date">${formatDate(r.date)}</div><div class="att-time">Check-in: ${r.checkInTime}</div></div>
+        <div>
+          <div class="att-date">${formatDate(r.date)}</div>
+          <div class="att-time">In: ${r.checkInTime}${r.checkOutTime ? ` · Out: ${r.checkOutTime}` : ''}</div>
+        </div>
         <div class="att-right">
           ${badges[status]}
-          ${r.deduction > 0 ? `<div style="margin-top:4px;"><span class="deduction-pill">-${r.deduction.toFixed(1)} EGP</span></div>` : ''}
+          ${r.earlyLeaveMinutes > 0 ? `<div style="margin-top:4px;"><span class="badge badge-red">-${r.earlyLeaveMinutes}m early</span></div>` : ''}
+          ${totalDed > 0 ? `<div style="margin-top:4px;"><span class="deduction-pill">-${totalDed.toFixed(1)} EGP</span></div>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -426,8 +487,7 @@ function isNotesAllowed() {
   const day = now.getDay();
   const hour = now.getHours();
   const isWorkingDay = CONFIG.workDays.includes(day);
-  if (!isWorkingDay) return true; // All non-working days allowed
-  // Working day: allowed before 14:00 and after 21:00
+  if (!isWorkingDay) return true;
   if (hour < 14) return true;
   if (hour >= 21) return true;
   return false;
@@ -436,14 +496,10 @@ function isNotesAllowed() {
 function renderNotesSection(u) {
   const container = document.getElementById('coach-notes');
   if (!container) return;
-
   const allowed = isNotesAllowed();
   const now = new Date();
   const isWorkingDay = CONFIG.workDays.includes(now.getDay());
-  const blockedMsg = isWorkingDay
-    ? '🔒 Notes are closed from 2:00 PM to 9:00 PM on working days.'
-    : '';
-
+  const blockedMsg = isWorkingDay ? '🔒 Notes are closed from 2:00 PM to 9:00 PM on working days.' : '';
   container.innerHTML = `
     <div class="card" style="margin:0 16px 16px;">
       <div style="font-size:13px;font-weight:800;color:var(--green);margin-bottom:12px;letter-spacing:1px;">📝 SEND A NOTE TO ADMIN</div>
@@ -454,7 +510,6 @@ function renderNotesSection(u) {
     </div>
     <div id="my-notes-list" style="margin:0 16px;"></div>
   `;
-
   listenToMyNotes(u.id, (notes) => {
     const list = document.getElementById('my-notes-list');
     if (!list) return;

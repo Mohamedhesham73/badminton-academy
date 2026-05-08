@@ -1,6 +1,6 @@
 // ─── FIREBASE IMPORTS ───
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD_3yHweVEDdQGLXkj5uLm6LdZAGezAU44",
@@ -23,20 +23,19 @@ const CONFIG = {
   sessionStart: { h: 17, m: 0 },
   checkinOpen: { h: 16, m: 0 },
   sessionEnd: { h: 21, m: 0 },
-  lateDeductionPerHour: 100,
   sessionsPerMonth: 12,
   currency: 'EGP',
 };
 
 // ─── USERS ───
 const USERS = [
-  { id: 1, email: 'tomhesham2009@gmail.com',      password: 'car3boy2009',       name: 'Mohamed Hesham (H)',      sessionRate: 383.3,  isAdmin: false, photo: 'imgs/H.jpeg' },
-  { id: 2, email: 'ezzat@academy.com',            password: '1234',              name: 'Omar Ezzat',              sessionRate: 383.3,  isAdmin: false, photo: 'imgs/Ezzat.jpeg' },
-  { id: 3, email: 'mahmoud72500@gmail.com',          password: '7250',              name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3,  isAdmin: false, photo: 'imgs/Mahmoud.jpeg' },
-  { id: 4, email: 'omarabdalkader1104@gmail.com', password: 'Zikoo1029&',        name: 'Omar Zakrie',             sessionRate: 383.3,  isAdmin: false, photo: 'imgs/Omar.jpeg' },
-  { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE',  name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3,  isAdmin: false, photo: 'imgs/Dan.jpeg' },
-  { id: 6, email: 'aboal7amd@academy.com',        password: '1234',              name: 'Abo AL7amd',              sessionRate: 541.67, isAdmin: false, customStart: { 1: { h: 18, m: 0 }, 3: { h: 18, m: 0 }, 6: { h: 17, m: 0 } } },
-  { id: 7, email: 'admin@academy.com',            password: 'admin123',          name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,      isAdmin: true,  photo: 'imgs/Mido.jpeg' },
+  { id: 1, email: 'tomhesham2009@gmail.com',      password: 'car3boy2009',       name: 'Mohamed Hesham (H)',      sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/H.jpeg' },
+  { id: 2, email: 'ezzat@academy.com',            password: '1234',              name: 'Omar Ezzat',              sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Ezzat.jpeg' },
+  { id: 3, email: 'mahmoud72500@gmail.com',       password: '7250',              name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Mahmoud.jpeg' },
+  { id: 4, email: 'omarabdalkader1104@gmail.com', password: 'Zikoo1029&',        name: 'Omar Zakrie',             sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Omar.jpeg' },
+  { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE',   name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Dan.jpeg' },
+  { id: 6, email: 'aboal7amd@academy.com',        password: '1234',              name: 'Abo AL7amd',              sessionRate: 541.67, hourlyRate: 162.5,  isAdmin: false, customStart: { 1: { h: 18, m: 0 }, 3: { h: 18, m: 0 }, 6: { h: 17, m: 0 } } },
+  { id: 7, email: 'admin@academy.com',            password: 'admin123',          name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,      hourlyRate: 0,      isAdmin: true,  photo: 'imgs/Mido.jpeg' },
 ];
 
 // ─── ATTENDANCE (synced with Firestore) ───
@@ -47,18 +46,25 @@ async function loadAttendance() {
     const snapshot = await getDocs(collection(db, 'attendance'));
     attendance = [];
     snapshot.forEach(d => attendance.push(d.data()));
-  } catch(e) {
-    console.error('Error loading:', e);
-  }
+  } catch(e) { console.error('Error loading:', e); }
 }
 
 async function saveAttendance(record) {
   try {
     const id = `${record.userId}_${record.date}`;
     await setDoc(doc(db, 'attendance', id), record);
-  } catch(e) {
-    console.error('Error saving:', e);
-  }
+  } catch(e) { console.error('Error saving:', e); }
+}
+
+async function updateAttendanceRecord(record) {
+  try {
+    const id = `${record.userId}_${record.date}`;
+    await setDoc(doc(db, 'attendance', id), record);
+    // Update local copy too
+    const idx = attendance.findIndex(a => a.userId === record.userId && a.date === record.date);
+    if (idx >= 0) attendance[idx] = record;
+    else attendance.push(record);
+  } catch(e) { console.error('Error updating:', e); }
 }
 
 async function removeAttendance(userId, date) {
@@ -66,9 +72,7 @@ async function removeAttendance(userId, date) {
     const id = `${userId}_${date}`;
     await deleteDoc(doc(db, 'attendance', id));
     attendance = attendance.filter(a => !(a.userId === userId && a.date === date));
-  } catch(e) {
-    console.error('Error removing:', e);
-  }
+  } catch(e) { console.error('Error removing:', e); }
 }
 
 function listenToAttendance(callback) {
@@ -82,10 +86,23 @@ function listenToAttendance(callback) {
 // ─── HELPERS ───
 function getUser(id) { return USERS.find(u => u.id === id); }
 function getUserByEmail(email) { return USERS.find(u => u.email === email.toLowerCase().trim()); }
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function isWorkDay(date = new Date()) {
   return CONFIG.workDays.includes(date.getDay());
+}
+
+// Get start time for coach today
+function getCoachStartTime(user) {
+  const todayDay = new Date().getDay();
+  const custom = user?.customStart?.[todayDay];
+  return custom || CONFIG.sessionStart;
 }
 
 function calcLateMinutes(timeStr, userId) {
@@ -100,20 +117,22 @@ function calcLateMinutes(timeStr, userId) {
     [h, m] = timeStr.split(':').map(Number);
   }
   const totalMins = h * 60 + m;
-
-  // Check if coach has custom start time for today
   const user = getUser(userId);
-  const todayDay = new Date().getDay();
-  const customStart = user?.customStart?.[todayDay];
-  const startMins = customStart
-    ? customStart.h * 60 + customStart.m
-    : CONFIG.sessionStart.h * 60 + CONFIG.sessionStart.m;
-
+  const startTime = getCoachStartTime(user);
+  const startMins = startTime.h * 60 + startTime.m;
   return Math.max(0, totalMins - startMins);
 }
 
-function calcDeduction(lateMinutes) {
-  return Math.round((lateMinutes / 60) * CONFIG.lateDeductionPerHour * 10) / 10;
+// New: deduction uses coach's hourly rate
+function calcDeductionForUser(minutes, userId) {
+  const user = getUser(userId);
+  const rate = user?.hourlyRate || 95.83;
+  return Math.round((minutes / 60) * rate * 10) / 10;
+}
+
+function calcDeduction(minutes) {
+  // Backwards compatibility — uses default regular hourly rate
+  return Math.round((minutes / 60) * 95.83 * 10) / 10;
 }
 
 function getLateStatus(lateMinutes) {
@@ -135,7 +154,7 @@ function calcMonthlySummary(userId, monthKey) {
   const records = getMonthAttendance(userId, monthKey);
   const daysPresent = records.length;
   const baseSalary = user.sessionRate * CONFIG.sessionsPerMonth;
-  const totalDeductions = records.reduce((s, r) => s + (r.deduction || 0), 0);
+  const totalDeductions = records.reduce((s, r) => s + (r.lateDeduction || 0) + (r.earlyLeaveDeduction || 0) + (r.deduction || 0), 0);
   const netSalary = baseSalary - totalDeductions;
   return { daysPresent, baseSalary, totalDeductions, netSalary, records };
 }
@@ -146,11 +165,47 @@ function hasCheckedInToday(userId) {
 
 async function addAttendance(userId, checkInTime) {
   const lateMinutes = calcLateMinutes(checkInTime, userId);
-  const deduction = calcDeduction(lateMinutes);
-  const record = { userId, date: todayStr(), checkInTime, lateMinutes, deduction };
+  const lateDeduction = calcDeductionForUser(lateMinutes, userId);
+  const record = {
+    userId,
+    date: todayStr(),
+    checkInTime,
+    lateMinutes,
+    lateDeduction,
+    deduction: lateDeduction, // for backwards compatibility
+    checkOutTime: null,
+    earlyLeaveMinutes: 0,
+    earlyLeaveDeduction: 0
+  };
   attendance.push(record);
   await saveAttendance(record);
   return record;
+}
+
+async function checkOutCoach(userId, checkOutTime) {
+  const todayRecord = attendance.find(a => a.userId === userId && a.date === todayStr());
+  if (!todayRecord) return null;
+
+  // Parse checkout time to minutes
+  const parts = checkOutTime.split(' ');
+  const ampm = parts[1];
+  let [h, m] = parts[0].split(':').map(Number);
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  const checkoutMins = h * 60 + m;
+
+  const sessionEndMins = CONFIG.sessionEnd.h * 60 + CONFIG.sessionEnd.m;
+  const earlyLeaveMinutes = Math.max(0, sessionEndMins - checkoutMins);
+  const earlyLeaveDeduction = calcDeductionForUser(earlyLeaveMinutes, userId);
+
+  const updated = {
+    ...todayRecord,
+    checkOutTime,
+    earlyLeaveMinutes,
+    earlyLeaveDeduction
+  };
+  await updateAttendanceRecord(updated);
+  return updated;
 }
 
 function formatDate(dateStr) {
@@ -200,9 +255,9 @@ function restoreSession() {
 
 export {
   db, CONFIG, USERS, attendance, currentUser,
-  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance,
-  getUser, getUserByEmail, todayStr, isWorkDay,
-  calcLateMinutes, calcDeduction, getLateStatus,
+  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach,
+  getUser, getUserByEmail, todayStr, isWorkDay, getCoachStartTime,
+  calcLateMinutes, calcDeduction, calcDeductionForUser, getLateStatus,
   getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary,
   hasCheckedInToday, formatDate, formatMonthLabel, initials, haversineMeters,
   login, logout, restoreSession
