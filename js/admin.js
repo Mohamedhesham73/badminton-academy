@@ -15,7 +15,6 @@ function avatarHtml(user, size = 36) {
   return `<div class="avatar ${user.sessionRate > 400 ? 'gold' : ''}" style="width:${size}px;height:${size}px;font-size:${fontSize}px;">${initials(user.name)}</div>`;
 }
 
-// Get past working days INCLUDING today if past 9 PM
 function getPastWorkingDaysInMonth(monthKey) {
   const [y, m] = monthKey.split('-').map(Number);
   const today = new Date();
@@ -28,7 +27,6 @@ function getPastWorkingDaysInMonth(monthKey) {
     const d = new Date(y, m - 1, day);
     d.setHours(0, 0, 0, 0);
     if (CONFIG.workDays.includes(d.getDay())) {
-      // Include past working days, also today if past 9 PM
       if (d < today || (d.getTime() === today.getTime() && isPast9PM)) {
         const yyyy = d.getFullYear();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -127,7 +125,7 @@ function renderOverviewTab(container) {
             ${s.earlyLeaveDeductions > 0 ? `<span class="deduction-pill">🚪 Early leave: -${s.earlyLeaveDeductions.toFixed(1)} EGP</span>` : ''}
             ${s.absenceDeductions > 0 ? `<span class="deduction-pill">❌ Absent (${s.absentDays}d): -${s.absenceDeductions.toFixed(1)} EGP</span>` : ''}
           </div>` : ''}
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           ${s.records.sort((a,b) => b.date.localeCompare(a.date)).map(r => {
             const late = r.lateMinutes > 0;
             const earlyLeave = r.earlyLeaveMinutes > 0;
@@ -139,6 +137,7 @@ function renderOverviewTab(container) {
           }).join('')}
           ${s.records.length === 0 ? `<span style="font-size:13px;color:var(--text-muted);">No attendance this month</span>` : ''}
         </div>
+        <button class="btn btn-outline btn-sm" style="width:auto;" onclick="generateSlip(${u.id})">📄 Generate Salary Slip</button>
       </div>`;
   }).join('');
 }
@@ -303,6 +302,251 @@ function renderNotesTab(container) {
           </div>
         </div>`;
     }).join('');
+  });
+}
+
+// ─── PDF SALARY SLIP ───
+function generateSalarySlip(userId) {
+  const u = getUser(userId);
+  const s = calcMonthlySummaryWithAbsences(u.id, adminMonthKey);
+  const monthLabel = formatMonthLabel(adminMonthKey);
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  // Colors
+  const greenRGB = [0, 200, 150];
+  const navyRGB = [10, 22, 40];
+  const yellowRGB = [255, 225, 53];
+  const redRGB = [255, 77, 109];
+  const grayRGB = [120, 130, 145];
+
+  // ─── Header ───
+  pdf.setFillColor(...navyRGB);
+  pdf.rect(0, 0, 210, 40, 'F');
+
+  // Logo / academy name
+  pdf.setTextColor(...greenRGB);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(28);
+  pdf.text('SMASHIN', 15, 22);
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(12);
+  pdf.text('DISHA HALL · BADMINTON ACADEMY', 15, 30);
+
+  // Salary slip title
+  pdf.setTextColor(...yellowRGB);
+  pdf.setFontSize(18);
+  pdf.text('SALARY SLIP', 195, 22, { align: 'right' });
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(11);
+  pdf.text(monthLabel, 195, 30, { align: 'right' });
+
+  // ─── Coach info section ───
+  let y = 55;
+  pdf.setTextColor(...navyRGB);
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('COACH', 15, y);
+  pdf.setFontSize(16);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(u.name, 15, y + 7);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(10);
+  pdf.setTextColor(...grayRGB);
+  pdf.text(u.email, 15, y + 13);
+
+  // Right side: rates
+  pdf.setTextColor(...navyRGB);
+  pdf.setFontSize(9);
+  pdf.text('SESSION RATE', 195, y, { align: 'right' });
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.text(`${u.sessionRate.toFixed(2)} EGP`, 195, y + 5, { align: 'right' });
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9);
+  pdf.text('HOURLY RATE', 195, y + 11, { align: 'right' });
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.text(`${u.hourlyRate.toFixed(2)} EGP`, 195, y + 16, { align: 'right' });
+
+  // Divider
+  y = 80;
+  pdf.setDrawColor(...greenRGB);
+  pdf.setLineWidth(0.5);
+  pdf.line(15, y, 195, y);
+
+  // ─── Attendance summary ───
+  y = 90;
+  pdf.setTextColor(...greenRGB);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(13);
+  pdf.text('ATTENDANCE SUMMARY', 15, y);
+
+  y += 10;
+  const totalLateMins = s.records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
+  const totalEarlyMins = s.records.reduce((sum, r) => sum + (r.earlyLeaveMinutes || 0), 0);
+
+  const summaryItems = [
+    ['Sessions Attended', `${s.daysPresent} / ${CONFIG.sessionsPerMonth}`],
+    ['Days Absent', `${s.absentDays}`],
+    ['Total Late Minutes', `${totalLateMins} min`],
+    ['Total Early Leave Minutes', `${totalEarlyMins} min`],
+  ];
+
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  summaryItems.forEach((item, i) => {
+    const yy = y + i * 7;
+    pdf.setTextColor(...grayRGB);
+    pdf.text(item[0], 15, yy);
+    pdf.setTextColor(...navyRGB);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(item[1], 195, yy, { align: 'right' });
+    pdf.setFont('helvetica', 'normal');
+  });
+
+  // ─── Salary calculation ───
+  y = 135;
+  pdf.setTextColor(...greenRGB);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(13);
+  pdf.text('SALARY CALCULATION', 15, y);
+
+  y += 10;
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+
+  // Base salary
+  pdf.setTextColor(...navyRGB);
+  pdf.text('Base Salary', 15, y);
+  pdf.text(`+ ${s.baseSalary.toFixed(2)} EGP`, 195, y, { align: 'right' });
+
+  // Deductions
+  y += 7;
+  if (s.lateDeductions > 0) {
+    pdf.setTextColor(...redRGB);
+    pdf.text('Late Arrival Deductions', 15, y);
+    pdf.text(`- ${s.lateDeductions.toFixed(2)} EGP`, 195, y, { align: 'right' });
+    y += 7;
+  }
+  if (s.earlyLeaveDeductions > 0) {
+    pdf.setTextColor(...redRGB);
+    pdf.text('Early Leave Deductions', 15, y);
+    pdf.text(`- ${s.earlyLeaveDeductions.toFixed(2)} EGP`, 195, y, { align: 'right' });
+    y += 7;
+  }
+  if (s.absenceDeductions > 0) {
+    pdf.setTextColor(...redRGB);
+    pdf.text(`Absence Deductions (${s.absentDays} day${s.absentDays !== 1 ? 's' : ''})`, 15, y);
+    pdf.text(`- ${s.absenceDeductions.toFixed(2)} EGP`, 195, y, { align: 'right' });
+    y += 7;
+  }
+  if (s.totalDeductions === 0) {
+    pdf.setTextColor(...greenRGB);
+    pdf.text('No Deductions This Month! 🎉', 15, y);
+    y += 7;
+  }
+
+  // Divider before net
+  y += 3;
+  pdf.setDrawColor(...grayRGB);
+  pdf.setLineWidth(0.3);
+  pdf.line(15, y, 195, y);
+
+  // Net salary - big and green
+  y += 12;
+  pdf.setFillColor(...greenRGB);
+  pdf.roundedRect(15, y - 8, 180, 18, 2, 2, 'F');
+  pdf.setTextColor(...navyRGB);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(12);
+  pdf.text('NET SALARY', 20, y + 1);
+  pdf.setFontSize(18);
+  pdf.text(`${Math.round(s.netSalary).toLocaleString('en-EG')} EGP`, 190, y + 2, { align: 'right' });
+
+  // ─── Detailed log ───
+  y = 195;
+  pdf.setTextColor(...greenRGB);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(13);
+  pdf.text('SESSION LOG', 15, y);
+
+  y += 10;
+  pdf.setFontSize(9);
+  pdf.setTextColor(...grayRGB);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('DATE', 15, y);
+  pdf.text('CHECK-IN', 60, y);
+  pdf.text('CHECK-OUT', 95, y);
+  pdf.text('STATUS', 130, y);
+  pdf.text('DEDUCTION', 195, y, { align: 'right' });
+
+  y += 4;
+  pdf.setDrawColor(220, 220, 220);
+  pdf.line(15, y, 195, y);
+  y += 6;
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9);
+
+  if (s.records.length === 0) {
+    pdf.setTextColor(...grayRGB);
+    pdf.text('No sessions attended this month.', 15, y);
+  } else {
+    s.records.sort((a,b) => a.date.localeCompare(b.date)).forEach(r => {
+      if (y > 280) {
+        pdf.addPage();
+        y = 20;
+      }
+      pdf.setTextColor(...navyRGB);
+      pdf.text(r.date, 15, y);
+      pdf.text(r.checkInTime, 60, y);
+      pdf.text(r.checkOutTime || '—', 95, y);
+
+      const status = getLateStatus(r.lateMinutes);
+      if (status === 'ontime') {
+        pdf.setTextColor(...greenRGB);
+        pdf.text(r.earlyLeaveMinutes > 0 ? `Left ${r.earlyLeaveMinutes}m early` : 'On time', 130, y);
+      } else {
+        pdf.setTextColor(...redRGB);
+        pdf.text(`+${r.lateMinutes}m late${r.earlyLeaveMinutes > 0 ? ` / -${r.earlyLeaveMinutes}m early` : ''}`, 130, y);
+      }
+
+      const totalDed = (r.lateDeduction || r.deduction || 0) + (r.earlyLeaveDeduction || 0);
+      pdf.setTextColor(totalDed > 0 ? redRGB[0] : greenRGB[0], totalDed > 0 ? redRGB[1] : greenRGB[1], totalDed > 0 ? redRGB[2] : greenRGB[2]);
+      pdf.text(totalDed > 0 ? `-${totalDed.toFixed(1)} EGP` : '—', 195, y, { align: 'right' });
+
+      y += 6;
+    });
+  }
+
+  // ─── Footer ───
+  const pageCount = pdf.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    pdf.setPage(i);
+    pdf.setTextColor(...grayRGB);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'italic');
+    const today = new Date().toLocaleDateString('en-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    pdf.text(`Generated on ${today} · Disha Hall Badminton Academy`, 105, 290, { align: 'center' });
+    pdf.text(`Page ${i} of ${pageCount}`, 195, 290, { align: 'right' });
+  }
+
+  // Save
+  const filename = `${u.name.replace(/[^a-zA-Z0-9]/g, '_')}_${adminMonthKey}.pdf`;
+  pdf.save(filename);
+}
+
+window.generateSlip = function(userId) {
+  generateSalarySlip(userId);
+}
+
+window.generateAllSlips = function() {
+  const coaches = USERS.filter(u => !u.isAdmin);
+  if (!confirm(`Generate salary slips for all ${coaches.length} coaches?`)) return;
+  coaches.forEach((u, i) => {
+    setTimeout(() => generateSalarySlip(u.id), i * 500);
   });
 }
 
