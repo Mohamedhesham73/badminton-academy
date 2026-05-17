@@ -38,6 +38,15 @@ function monthEndForInput(monthKey) {
   return `${monthKey}-${String(lastDay).padStart(2, '0')}`;
 }
 
+function datePlusDaysStr(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function launchConfetti() {
   const colors = ['#00C896', '#FFE135', '#ff4d6d', '#ffffff', '#00a8ff'];
   for (let i = 0; i < 80; i++) {
@@ -548,8 +557,9 @@ function renderRestDaySection(u, monthKey) {
   if (!container) return;
 
   const today = todayStr();
+  const earliestRestDate = datePlusDaysStr(today, 1);
   const monthStart = `${monthKey}-01`;
-  const minDate = today > monthStart ? today : monthStart;
+  const minDate = earliestRestDate > monthStart ? earliestRestDate : monthStart;
   const maxDate = monthEndForInput(monthKey);
   const records = getMonthAttendance(u.id, monthKey);
   const restDay = records.find(isCoachRestDay);
@@ -559,6 +569,15 @@ function renderRestDaySection(u, monthKey) {
     container.innerHTML = `
       <div class="card" style="margin:0 16px 16px;">
         <div style="font-size:13px;color:var(--text-muted);">Rest days can only be chosen for the current month.</div>
+      </div>`;
+    return;
+  }
+
+  if (minDate > maxDate) {
+    container.innerHTML = `
+      <div class="card" style="margin:0 16px 16px;">
+        <div style="font-size:14px;font-weight:800;color:var(--orange);margin-bottom:4px;">No rest days available</div>
+        <div style="font-size:13px;color:var(--text-muted);">Rest days must be chosen at least one day before the date.</div>
       </div>`;
     return;
   }
@@ -601,7 +620,7 @@ window.submitRestDay = async function() {
   if (!status) return;
   if (!date) { status.textContent = 'Please choose a date first.'; status.style.color = 'var(--orange)'; return; }
   if (date.slice(0, 7) !== monthKey) { status.textContent = 'Choose a day in the current month.'; status.style.color = 'var(--orange)'; return; }
-  if (date < todayStr()) { status.textContent = 'Choose today or an upcoming day.'; status.style.color = 'var(--orange)'; return; }
+  if (date <= todayStr()) { status.textContent = 'Choose a future day at least one day before the rest day.'; status.style.color = 'var(--orange)'; return; }
   if (!isWorkDay(new Date(date + 'T00:00:00'))) { status.textContent = 'Rest day must be Saturday, Monday, or Wednesday.'; status.style.color = 'var(--orange)'; return; }
   if (records.some(isCoachRestDay)) { status.textContent = 'You already chose your rest day this month.'; status.style.color = 'var(--orange)'; return; }
   if (attendance.some(r => r.date === date && r.userId !== currentUser.id && isCoachRestDay(r))) {
