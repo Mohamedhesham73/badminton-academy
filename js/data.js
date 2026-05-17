@@ -1,6 +1,6 @@
 // ─── FIREBASE IMPORTS ───
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD_3yHweVEDdQGLXkj5uLm6LdZAGezAU44",
@@ -34,7 +34,7 @@ const USERS = [
   { id: 3, email: 'mahmoud72500@gmail.com',       password: '7250',              name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Mahmoud.jpeg' },
   { id: 4, email: 'omarabdalkader1104@gmail.com', password: 'Zikoo1029&',        name: 'Omar Zakrie',             sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Omar.jpeg' },
   { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE',   name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Dan.jpeg' },
- { id: 6, email: 'aboal7amd@academy.com', password: '1234', name: 'Abo AL7amd', sessionRate: 541.67, hourlyRate: 135.42, isAdmin: false, customStart: { 1: { h: 18, m: 0 }, 3: { h: 18, m: 0 }, 6: { h: 17, m: 0 } } },
+  { id: 6, email: 'aboal7amd@academy.com',        password: '1234',              name: 'Abo AL7amd',              sessionRate: 541.67, hourlyRate: 135.42, isAdmin: false, customStart: { 1: { h: 18, m: 0 }, 3: { h: 18, m: 0 }, 6: { h: 17, m: 0 } } },
   { id: 7, email: 'admin@academy.com',            password: 'admin123',          name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,      hourlyRate: 0,      isAdmin: true,  photo: 'imgs/Mido.jpeg' },
 ];
 
@@ -60,7 +60,6 @@ async function updateAttendanceRecord(record) {
   try {
     const id = `${record.userId}_${record.date}`;
     await setDoc(doc(db, 'attendance', id), record);
-    // Update local copy too
     const idx = attendance.findIndex(a => a.userId === record.userId && a.date === record.date);
     if (idx >= 0) attendance[idx] = record;
     else attendance.push(record);
@@ -73,6 +72,28 @@ async function removeAttendance(userId, date) {
     await deleteDoc(doc(db, 'attendance', id));
     attendance = attendance.filter(a => !(a.userId === userId && a.date === date));
   } catch(e) { console.error('Error removing:', e); }
+}
+
+// Mark an absence as excused (creates a record with excused=true)
+async function markAsExcused(userId, date, reason = 'Excused by admin') {
+  const record = {
+    userId,
+    date,
+    checkInTime: 'EXCUSED',
+    checkOutTime: 'EXCUSED',
+    lateMinutes: 0,
+    lateDeduction: 0,
+    deduction: 0,
+    earlyLeaveMinutes: 0,
+    earlyLeaveDeduction: 0,
+    excused: true,
+    excusedReason: reason
+  };
+  await saveAttendance(record);
+  const idx = attendance.findIndex(a => a.userId === userId && a.date === date);
+  if (idx >= 0) attendance[idx] = record;
+  else attendance.push(record);
+  return record;
 }
 
 function listenToAttendance(callback) {
@@ -98,7 +119,6 @@ function isWorkDay(date = new Date()) {
   return CONFIG.workDays.includes(date.getDay());
 }
 
-// Get start time for coach today
 function getCoachStartTime(user) {
   const todayDay = new Date().getDay();
   const custom = user?.customStart?.[todayDay];
@@ -123,7 +143,6 @@ function calcLateMinutes(timeStr, userId) {
   return Math.max(0, totalMins - startMins);
 }
 
-// New: deduction uses coach's hourly rate
 function calcDeductionForUser(minutes, userId) {
   const user = getUser(userId);
   const rate = user?.hourlyRate || 95.83;
@@ -131,7 +150,6 @@ function calcDeductionForUser(minutes, userId) {
 }
 
 function calcDeduction(minutes) {
-  // Backwards compatibility — uses default regular hourly rate
   return Math.round((minutes / 60) * 95.83 * 10) / 10;
 }
 
@@ -172,7 +190,7 @@ async function addAttendance(userId, checkInTime) {
     checkInTime,
     lateMinutes,
     lateDeduction,
-    deduction: lateDeduction, // for backwards compatibility
+    deduction: lateDeduction,
     checkOutTime: null,
     earlyLeaveMinutes: 0,
     earlyLeaveDeduction: 0
@@ -185,19 +203,15 @@ async function addAttendance(userId, checkInTime) {
 async function checkOutCoach(userId, checkOutTime) {
   const todayRecord = attendance.find(a => a.userId === userId && a.date === todayStr());
   if (!todayRecord) return null;
-
-  // Parse checkout time to minutes
   const parts = checkOutTime.split(' ');
   const ampm = parts[1];
   let [h, m] = parts[0].split(':').map(Number);
   if (ampm === 'PM' && h !== 12) h += 12;
   if (ampm === 'AM' && h === 12) h = 0;
   const checkoutMins = h * 60 + m;
-
   const sessionEndMins = CONFIG.sessionEnd.h * 60 + CONFIG.sessionEnd.m;
   const earlyLeaveMinutes = Math.max(0, sessionEndMins - checkoutMins);
   const earlyLeaveDeduction = calcDeductionForUser(earlyLeaveMinutes, userId);
-
   const updated = {
     ...todayRecord,
     checkOutTime,
@@ -255,7 +269,7 @@ function restoreSession() {
 
 export {
   db, CONFIG, USERS, attendance, currentUser,
-  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach,
+  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach, markAsExcused,
   getUser, getUserByEmail, todayStr, isWorkDay, getCoachStartTime,
   calcLateMinutes, calcDeduction, calcDeductionForUser, getLateStatus,
   getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary,

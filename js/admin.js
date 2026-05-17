@@ -1,5 +1,5 @@
 // ─── ADMIN PAGE ───
-import { CONFIG, USERS, attendance, removeAttendance, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
+import { CONFIG, USERS, attendance, removeAttendance, markAsExcused, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
 import { listenToNotes, markNoteRead, deleteNote, formatNoteTime } from './notes.js';
 
 let adminActiveTab = 'overview';
@@ -38,20 +38,33 @@ function getPastWorkingDaysInMonth(monthKey) {
   return days;
 }
 
+// Helper: is a record an excused absence?
+function isExcused(record) {
+  return record.excused === true || record.checkInTime === 'EXCUSED';
+}
+
 function calcMonthlySummaryWithAbsences(userId, monthKey) {
   const user = getUser(userId);
-  const records = getMonthAttendance(userId, monthKey);
+  const allRecords = getMonthAttendance(userId, monthKey);
+  // Real records = not excused (excused records don't count as sessions attended)
+  const realRecords = allRecords.filter(r => !isExcused(r));
+  const excusedRecords = allRecords.filter(r => isExcused(r));
+  const excusedDates = excusedRecords.map(r => r.date);
+
   const pastWorkingDays = getPastWorkingDaysInMonth(monthKey);
-  const daysPresent = records.length;
+  const daysPresent = realRecords.length;
   const baseSalary = user.sessionRate * CONFIG.sessionsPerMonth;
-  const lateDeductions = records.reduce((s, r) => s + (r.lateDeduction || r.deduction || 0), 0);
-  const earlyLeaveDeductions = records.reduce((s, r) => s + (r.earlyLeaveDeduction || 0), 0);
-  const presentDates = records.map(r => r.date);
-  const absentDays = pastWorkingDays.filter(d => !presentDates.includes(d)).length;
+  const lateDeductions = realRecords.reduce((s, r) => s + (r.lateDeduction || r.deduction || 0), 0);
+  const earlyLeaveDeductions = realRecords.reduce((s, r) => s + (r.earlyLeaveDeduction || 0), 0);
+
+  const presentDates = realRecords.map(r => r.date);
+  // Absent days = working days where coach is NEITHER present NOR excused
+  const absentDays = pastWorkingDays.filter(d => !presentDates.includes(d) && !excusedDates.includes(d)).length;
   const absenceDeductions = absentDays * user.sessionRate;
+
   const totalDeductions = lateDeductions + earlyLeaveDeductions + absenceDeductions;
   const netSalary = baseSalary - totalDeductions;
-  return { daysPresent, baseSalary, totalDeductions, lateDeductions, earlyLeaveDeductions, absenceDeductions, absentDays, netSalary, records };
+  return { daysPresent, baseSalary, totalDeductions, lateDeductions, earlyLeaveDeductions, absenceDeductions, absentDays, netSalary, records: realRecords, excusedRecords };
 }
 
 export function renderAdminPage() {
@@ -125,6 +138,10 @@ function renderOverviewTab(container) {
             ${s.earlyLeaveDeductions > 0 ? `<span class="deduction-pill">🚪 Early leave: -${s.earlyLeaveDeductions.toFixed(1)} EGP</span>` : ''}
             ${s.absenceDeductions > 0 ? `<span class="deduction-pill">❌ Absent (${s.absentDays}d): -${s.absenceDeductions.toFixed(1)} EGP</span>` : ''}
           </div>` : ''}
+        ${s.excusedRecords && s.excusedRecords.length > 0 ? `
+          <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
+            ${s.excusedRecords.map(r => `<span style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);padding:3px 8px;border-radius:8px;font-size:11px;">🛡️ ${r.date.slice(5)} ${r.excusedReason ? '· ' + r.excusedReason : ''}</span>`).join('')}
+          </div>` : ''}
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           ${s.records.sort((a,b) => b.date.localeCompare(a.date)).map(r => {
             const late = r.lateMinutes > 0;
@@ -161,15 +178,20 @@ function renderLogTab(container) {
   const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
   container.innerHTML = sortedDates.map(date => {
-    const records = byDate[date];
+    const allRecords = byDate[date];
+    const realRecords = allRecords.filter(r => !isExcused(r));
+    const excusedRecords = allRecords.filter(r => isExcused(r));
+    const excusedIds = excusedRecords.map(r => r.userId);
+
     const dayDate = new Date(date + 'T00:00:00');
     const dayLabel = dayDate.toLocaleDateString('en-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const totalPresent = records.length;
-    const totalDeductions = records.reduce((s, r) => s + (r.lateDeduction || r.deduction || 0) + (r.earlyLeaveDeduction || 0), 0);
-    const presentIds = records.map(r => r.userId);
-    const absentCoaches = coaches.filter(u => !presentIds.includes(u.id));
+    const totalPresent = realRecords.length;
+    const totalDeductions = realRecords.reduce((s, r) => s + (r.lateDeduction || r.deduction || 0) + (r.earlyLeaveDeduction || 0), 0);
+    const presentIds = realRecords.map(r => r.userId);
+    // Absent = not present AND not excused
+    const absentCoaches = coaches.filter(u => !presentIds.includes(u.id) && !excusedIds.includes(u.id));
 
-    const presentRows = records.map(r => {
+    const presentRows = realRecords.map(r => {
       const u = getUser(r.userId);
       const status = getLateStatus(r.lateMinutes);
       const statusBadge = {
@@ -198,6 +220,24 @@ function renderLogTab(container) {
         </div>`;
     }).join('');
 
+    const excusedRows = excusedRecords.map(r => {
+      const u = getUser(r.userId);
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);background:rgba(255,225,53,0.04);">
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${avatarHtml(u, 32)}
+            <div>
+              <div style="font-size:14px;font-weight:700;">${u.name}</div>
+              <div style="font-size:12px;color:var(--text-muted);">${r.excusedReason || 'Excused by admin'} · No deduction</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="badge" style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);">🛡️ Excused</span>
+            <button class="btn-danger" onclick="adminRemoveEntry(${r.userId},'${r.date}')">Remove</button>
+          </div>
+        </div>`;
+    }).join('');
+
     const absentRows = absentCoaches.map(u => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);background:rgba(255,77,109,0.04);">
         <div style="display:flex;align-items:center;gap:10px;">
@@ -207,7 +247,10 @@ function renderLogTab(container) {
             <div style="font-size:12px;color:var(--text-muted);">Did not check in · -${u.sessionRate.toFixed(1)} EGP</div>
           </div>
         </div>
-        <span class="badge badge-red">❌ Absent</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="badge badge-red">❌ Absent</span>
+          <button class="btn btn-sm" style="width:auto;padding:4px 10px;background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);" onclick="adminMarkExcused(${u.id},'${date}')">🛡️ Excuse</button>
+        </div>
       </div>`).join('');
 
     return `
@@ -216,7 +259,7 @@ function renderLogTab(container) {
           <div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--green);">📅 ${dayLabel}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
-              ${totalPresent} present · ${absentCoaches.length} absent
+              ${totalPresent} present · ${excusedRecords.length} excused · ${absentCoaches.length} absent
               ${totalDeductions > 0 ? ` · ${totalDeductions.toFixed(1)} EGP deducted` : ''}
             </div>
           </div>
@@ -224,6 +267,7 @@ function renderLogTab(container) {
         </div>
         <div style="background:rgba(255,255,255,0.02);">
           ${presentRows}
+          ${excusedRows}
           ${absentRows}
         </div>
       </div>`;
@@ -305,6 +349,16 @@ function renderNotesTab(container) {
   });
 }
 
+// ─── EXCUSE ABSENCE ───
+window.adminMarkExcused = async function(userId, date) {
+  const u = getUser(userId);
+  const reason = prompt(`Why is ${u.name} excused on ${date}?\n(e.g. Tournament, Sick, Family emergency)\n\nLeave blank for "Excused by admin"`);
+  if (reason === null) return; // user cancelled
+  const finalReason = reason.trim() || 'Excused by admin';
+  await markAsExcused(userId, date, finalReason);
+  renderAdminPage();
+}
+
 // ─── PDF SALARY SLIP ───
 function generateSalarySlip(userId) {
   const u = getUser(userId);
@@ -314,18 +368,15 @@ function generateSalarySlip(userId) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-  // Colors
   const greenRGB = [0, 200, 150];
   const navyRGB = [10, 22, 40];
   const yellowRGB = [255, 225, 53];
   const redRGB = [255, 77, 109];
   const grayRGB = [120, 130, 145];
 
-  // ─── Header ───
   pdf.setFillColor(...navyRGB);
   pdf.rect(0, 0, 210, 40, 'F');
 
-  // Logo / academy name
   pdf.setTextColor(...greenRGB);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(28);
@@ -334,7 +385,6 @@ function generateSalarySlip(userId) {
   pdf.setFontSize(12);
   pdf.text('DISHA HALL · BADMINTON ACADEMY', 15, 30);
 
-  // Salary slip title
   pdf.setTextColor(...yellowRGB);
   pdf.setFontSize(18);
   pdf.text('SALARY SLIP', 195, 22, { align: 'right' });
@@ -342,7 +392,6 @@ function generateSalarySlip(userId) {
   pdf.setFontSize(11);
   pdf.text(monthLabel, 195, 30, { align: 'right' });
 
-  // ─── Coach info section ───
   let y = 55;
   pdf.setTextColor(...navyRGB);
   pdf.setFontSize(10);
@@ -356,7 +405,6 @@ function generateSalarySlip(userId) {
   pdf.setTextColor(...grayRGB);
   pdf.text(u.email, 15, y + 13);
 
-  // Right side: rates
   pdf.setTextColor(...navyRGB);
   pdf.setFontSize(9);
   pdf.text('SESSION RATE', 195, y, { align: 'right' });
@@ -370,13 +418,11 @@ function generateSalarySlip(userId) {
   pdf.setFontSize(11);
   pdf.text(`${u.hourlyRate.toFixed(2)} EGP`, 195, y + 16, { align: 'right' });
 
-  // Divider
   y = 80;
   pdf.setDrawColor(...greenRGB);
   pdf.setLineWidth(0.5);
   pdf.line(15, y, 195, y);
 
-  // ─── Attendance summary ───
   y = 90;
   pdf.setTextColor(...greenRGB);
   pdf.setFont('helvetica', 'bold');
@@ -386,10 +432,12 @@ function generateSalarySlip(userId) {
   y += 10;
   const totalLateMins = s.records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
   const totalEarlyMins = s.records.reduce((sum, r) => sum + (r.earlyLeaveMinutes || 0), 0);
+  const excusedCount = (s.excusedRecords || []).length;
 
   const summaryItems = [
     ['Sessions Attended', `${s.daysPresent} / ${CONFIG.sessionsPerMonth}`],
     ['Days Absent', `${s.absentDays}`],
+    ['Days Excused', `${excusedCount}`],
     ['Total Late Minutes', `${totalLateMins} min`],
     ['Total Early Leave Minutes', `${totalEarlyMins} min`],
   ];
@@ -406,8 +454,7 @@ function generateSalarySlip(userId) {
     pdf.setFont('helvetica', 'normal');
   });
 
-  // ─── Salary calculation ───
-  y = 135;
+  y = 140;
   pdf.setTextColor(...greenRGB);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(13);
@@ -416,13 +463,10 @@ function generateSalarySlip(userId) {
   y += 10;
   pdf.setFontSize(10);
   pdf.setFont('helvetica', 'normal');
-
-  // Base salary
   pdf.setTextColor(...navyRGB);
   pdf.text('Base Salary', 15, y);
   pdf.text(`+ ${s.baseSalary.toFixed(2)} EGP`, 195, y, { align: 'right' });
 
-  // Deductions
   y += 7;
   if (s.lateDeductions > 0) {
     pdf.setTextColor(...redRGB);
@@ -448,13 +492,11 @@ function generateSalarySlip(userId) {
     y += 7;
   }
 
-  // Divider before net
   y += 3;
   pdf.setDrawColor(...grayRGB);
   pdf.setLineWidth(0.3);
   pdf.line(15, y, 195, y);
 
-  // Net salary - big and green
   y += 12;
   pdf.setFillColor(...greenRGB);
   pdf.roundedRect(15, y - 8, 180, 18, 2, 2, 'F');
@@ -465,8 +507,7 @@ function generateSalarySlip(userId) {
   pdf.setFontSize(18);
   pdf.text(`${Math.round(s.netSalary).toLocaleString('en-EG')} EGP`, 190, y + 2, { align: 'right' });
 
-  // ─── Detailed log ───
-  y = 195;
+  y = 200;
   pdf.setTextColor(...greenRGB);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(13);
@@ -490,38 +531,46 @@ function generateSalarySlip(userId) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
 
-  if (s.records.length === 0) {
+  // Combine real and excused records for the log
+  const allRecords = [...s.records, ...(s.excusedRecords || [])].sort((a,b) => a.date.localeCompare(b.date));
+
+  if (allRecords.length === 0) {
     pdf.setTextColor(...grayRGB);
     pdf.text('No sessions attended this month.', 15, y);
   } else {
-    s.records.sort((a,b) => a.date.localeCompare(b.date)).forEach(r => {
+    allRecords.forEach(r => {
       if (y > 280) {
         pdf.addPage();
         y = 20;
       }
       pdf.setTextColor(...navyRGB);
       pdf.text(r.date, 15, y);
-      pdf.text(r.checkInTime, 60, y);
-      pdf.text(r.checkOutTime || '—', 95, y);
 
-      const status = getLateStatus(r.lateMinutes);
-      if (status === 'ontime') {
-        pdf.setTextColor(...greenRGB);
-        pdf.text(r.earlyLeaveMinutes > 0 ? `Left ${r.earlyLeaveMinutes}m early` : 'On time', 130, y);
+      if (isExcused(r)) {
+        pdf.text('—', 60, y);
+        pdf.text('—', 95, y);
+        pdf.setTextColor(255, 180, 0);
+        pdf.text(`Excused${r.excusedReason ? ' (' + r.excusedReason + ')' : ''}`, 130, y);
+        pdf.text('—', 195, y, { align: 'right' });
       } else {
-        pdf.setTextColor(...redRGB);
-        pdf.text(`+${r.lateMinutes}m late${r.earlyLeaveMinutes > 0 ? ` / -${r.earlyLeaveMinutes}m early` : ''}`, 130, y);
+        pdf.text(r.checkInTime, 60, y);
+        pdf.text(r.checkOutTime || '—', 95, y);
+        const status = getLateStatus(r.lateMinutes);
+        if (status === 'ontime') {
+          pdf.setTextColor(...greenRGB);
+          pdf.text(r.earlyLeaveMinutes > 0 ? `Left ${r.earlyLeaveMinutes}m early` : 'On time', 130, y);
+        } else {
+          pdf.setTextColor(...redRGB);
+          pdf.text(`+${r.lateMinutes}m late${r.earlyLeaveMinutes > 0 ? ` / -${r.earlyLeaveMinutes}m early` : ''}`, 130, y);
+        }
+        const totalDed = (r.lateDeduction || r.deduction || 0) + (r.earlyLeaveDeduction || 0);
+        pdf.setTextColor(totalDed > 0 ? redRGB[0] : greenRGB[0], totalDed > 0 ? redRGB[1] : greenRGB[1], totalDed > 0 ? redRGB[2] : greenRGB[2]);
+        pdf.text(totalDed > 0 ? `-${totalDed.toFixed(1)} EGP` : '—', 195, y, { align: 'right' });
       }
-
-      const totalDed = (r.lateDeduction || r.deduction || 0) + (r.earlyLeaveDeduction || 0);
-      pdf.setTextColor(totalDed > 0 ? redRGB[0] : greenRGB[0], totalDed > 0 ? redRGB[1] : greenRGB[1], totalDed > 0 ? redRGB[2] : greenRGB[2]);
-      pdf.text(totalDed > 0 ? `-${totalDed.toFixed(1)} EGP` : '—', 195, y, { align: 'right' });
-
       y += 6;
     });
   }
 
-  // ─── Footer ───
   const pageCount = pdf.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
@@ -533,15 +582,11 @@ function generateSalarySlip(userId) {
     pdf.text(`Page ${i} of ${pageCount}`, 195, 290, { align: 'right' });
   }
 
-  // Save
   const filename = `${u.name.replace(/[^a-zA-Z0-9]/g, '_')}_${adminMonthKey}.pdf`;
   pdf.save(filename);
 }
 
-window.generateSlip = function(userId) {
-  generateSalarySlip(userId);
-}
-
+window.generateSlip = function(userId) { generateSalarySlip(userId); }
 window.generateAllSlips = function() {
   const coaches = USERS.filter(u => !u.isAdmin);
   if (!confirm(`Generate salary slips for all ${coaches.length} coaches?`)) return;
