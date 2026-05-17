@@ -174,7 +174,14 @@ export function renderCoachPage() {
   document.getElementById('coach-name-header').textContent = u.name;
   document.getElementById('coach-days').textContent = summary.daysPresent;
   document.getElementById('coach-sessions').textContent = CONFIG.sessionsPerMonth;
-  document.getElementById('coach-salary').textContent = Math.round(summary.baseSalary).toLocaleString('en-EG') + ' EGP';
+  const baseSalaryEl = document.getElementById('coach-salary');
+baseSalaryEl.innerHTML = `
+  ${Math.round(summary.baseSalary).toLocaleString('en-EG')} EGP
+  <div style="font-size:11px;font-weight:600;color:${summary.totalDeductions > 0 ? 'var(--orange)' : 'var(--green)'};margin-top:4px;letter-spacing:0.5px;">
+    Net: ${Math.round(summary.netSalary).toLocaleString('en-EG')} EGP
+    ${summary.totalDeductions > 0 ? `<div style="font-size:10px;color:var(--red);margin-top:2px;">-${Math.round(summary.totalDeductions).toLocaleString('en-EG')} deducted</div>` : ''}
+  </div>
+`;
 
   const pct = Math.min(100, (summary.daysPresent / CONFIG.sessionsPerMonth) * 100);
   document.getElementById('coach-progress').style.width = pct + '%';

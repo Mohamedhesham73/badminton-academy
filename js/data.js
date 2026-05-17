@@ -38,6 +38,34 @@ const USERS = [
   { id: 7, email: 'admin@academy.com',            password: 'admin123',          name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,      hourlyRate: 0,      isAdmin: true,  photo: 'imgs/Mido.jpeg' },
 ];
 
+// ─── EGYPTIAN HOLIDAYS (suggested by app) ───
+// Format: { name, icon, startDate, endDate, type }
+// Lunar holidays (Eid, Islamic New Year, Prophet's Birthday) approximate dates - admin should confirm
+const SUGGESTED_HOLIDAYS = [
+  // 2026
+  { name: 'Coptic Christmas', icon: '✝️', startDate: '2026-01-07', endDate: '2026-01-07', type: 'fixed' },
+  { name: 'Revolution Day (Jan 25)', icon: '🇪🇬', startDate: '2026-01-25', endDate: '2026-01-25', type: 'fixed' },
+  { name: 'Sinai Liberation Day', icon: '🇪🇬', startDate: '2026-04-25', endDate: '2026-04-25', type: 'fixed' },
+  { name: 'Sham El-Nessim', icon: '🐣', startDate: '2026-04-13', endDate: '2026-04-13', type: 'fixed' },
+  { name: 'Labor Day', icon: '🛠️', startDate: '2026-05-01', endDate: '2026-05-01', type: 'fixed' },
+  { name: 'Eid al-Fitr', icon: '🕌', startDate: '2026-03-20', endDate: '2026-03-22', type: 'lunar' },
+  { name: 'Eid al-Adha', icon: '🕌', startDate: '2026-05-27', endDate: '2026-05-30', type: 'lunar' },
+  { name: 'Islamic New Year', icon: '🌙', startDate: '2026-06-17', endDate: '2026-06-17', type: 'lunar' },
+  { name: 'June 30 Revolution', icon: '🇪🇬', startDate: '2026-06-30', endDate: '2026-06-30', type: 'fixed' },
+  { name: '23 July Revolution', icon: '🇪🇬', startDate: '2026-07-23', endDate: '2026-07-23', type: 'fixed' },
+  { name: 'Prophet\'s Birthday', icon: '🕌', startDate: '2026-08-26', endDate: '2026-08-26', type: 'lunar' },
+  { name: 'Armed Forces Day', icon: '🇪🇬', startDate: '2026-10-06', endDate: '2026-10-06', type: 'fixed' },
+  // 2027
+  { name: 'Coptic Christmas', icon: '✝️', startDate: '2027-01-07', endDate: '2027-01-07', type: 'fixed' },
+  { name: 'Revolution Day (Jan 25)', icon: '🇪🇬', startDate: '2027-01-25', endDate: '2027-01-25', type: 'fixed' },
+  { name: 'Eid al-Fitr', icon: '🕌', startDate: '2027-03-09', endDate: '2027-03-11', type: 'lunar' },
+  { name: 'Sham El-Nessim', icon: '🐣', startDate: '2027-05-03', endDate: '2027-05-03', type: 'fixed' },
+  { name: 'Labor Day', icon: '🛠️', startDate: '2027-05-01', endDate: '2027-05-01', type: 'fixed' },
+  { name: 'Eid al-Adha', icon: '🕌', startDate: '2027-05-17', endDate: '2027-05-20', type: 'lunar' },
+  { name: 'June 30 Revolution', icon: '🇪🇬', startDate: '2027-06-30', endDate: '2027-06-30', type: 'fixed' },
+  { name: 'Armed Forces Day', icon: '🇪🇬', startDate: '2027-10-06', endDate: '2027-10-06', type: 'fixed' },
+];
+
 // ─── ATTENDANCE (synced with Firestore) ───
 let attendance = [];
 
@@ -74,7 +102,6 @@ async function removeAttendance(userId, date) {
   } catch(e) { console.error('Error removing:', e); }
 }
 
-// Mark an absence as excused (creates a record with excused=true)
 async function markAsExcused(userId, date, reason = 'Excused by admin') {
   const record = {
     userId,
@@ -101,6 +128,75 @@ function listenToAttendance(callback) {
     attendance = [];
     snapshot.forEach(d => attendance.push(d.data()));
     callback();
+  });
+}
+
+// ─── HOLIDAYS (synced with Firestore) ───
+let holidays = [];
+
+async function loadHolidays() {
+  try {
+    const snapshot = await getDocs(collection(db, 'holidays'));
+    holidays = [];
+    snapshot.forEach(d => holidays.push({ ...d.data(), id: d.id }));
+  } catch(e) { console.error('Error loading holidays:', e); }
+}
+
+async function saveHoliday(holiday) {
+  try {
+    const id = holiday.id || `${holiday.startDate}_${holiday.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    await setDoc(doc(db, 'holidays', id), { ...holiday, id });
+    const idx = holidays.findIndex(h => h.id === id);
+    if (idx >= 0) holidays[idx] = { ...holiday, id };
+    else holidays.push({ ...holiday, id });
+    return id;
+  } catch(e) { console.error('Error saving holiday:', e); return null; }
+}
+
+async function removeHoliday(id) {
+  try {
+    await deleteDoc(doc(db, 'holidays', id));
+    holidays = holidays.filter(h => h.id !== id);
+  } catch(e) { console.error('Error removing holiday:', e); }
+}
+
+function listenToHolidays(callback) {
+  onSnapshot(collection(db, 'holidays'), (snapshot) => {
+    holidays = [];
+    snapshot.forEach(d => holidays.push({ ...d.data(), id: d.id }));
+    if (callback) callback();
+  });
+}
+
+// Generate list of dates between start and end (inclusive)
+function expandHolidayRange(startDate, endDate) {
+  const dates = [];
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  const cur = new Date(start);
+  while (cur <= end) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const d = String(cur.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+// Check if a date is a holiday
+function isHoliday(dateStr) {
+  return holidays.some(h => {
+    const dates = expandHolidayRange(h.startDate, h.endDate);
+    return dates.includes(dateStr);
+  });
+}
+
+// Get holiday info for a date
+function getHoliday(dateStr) {
+  return holidays.find(h => {
+    const dates = expandHolidayRange(h.startDate, h.endDate);
+    return dates.includes(dateStr);
   });
 }
 
@@ -268,8 +364,9 @@ function restoreSession() {
 }
 
 export {
-  db, CONFIG, USERS, attendance, currentUser,
+  db, CONFIG, USERS, attendance, currentUser, holidays, SUGGESTED_HOLIDAYS,
   loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach, markAsExcused,
+  loadHolidays, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange,
   getUser, getUserByEmail, todayStr, isWorkDay, getCoachStartTime,
   calcLateMinutes, calcDeduction, calcDeductionForUser, getLateStatus,
   getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary,

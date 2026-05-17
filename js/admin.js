@@ -1,5 +1,5 @@
 // ─── ADMIN PAGE ───
-import { CONFIG, USERS, attendance, removeAttendance, markAsExcused, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
+import { CONFIG, USERS, attendance, holidays, SUGGESTED_HOLIDAYS, removeAttendance, markAsExcused, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
 import { listenToNotes, markNoteRead, deleteNote, formatNoteTime } from './notes.js';
 
 let adminActiveTab = 'overview';
@@ -15,6 +15,7 @@ function avatarHtml(user, size = 36) {
   return `<div class="avatar ${user.sessionRate > 400 ? 'gold' : ''}" style="width:${size}px;height:${size}px;font-size:${fontSize}px;">${initials(user.name)}</div>`;
 }
 
+// Get past working days, EXCLUDING holidays
 function getPastWorkingDaysInMonth(monthKey) {
   const [y, m] = monthKey.split('-').map(Number);
   const today = new Date();
@@ -31,6 +32,34 @@ function getPastWorkingDaysInMonth(monthKey) {
         const yyyy = d.getFullYear();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        // Skip if it's a holiday
+        if (!isHoliday(dateStr)) {
+          days.push(dateStr);
+        }
+      }
+    }
+  }
+  return days;
+}
+
+// Get ALL working days (including today, excluding holidays) for full log display
+function getAllWorkingDaysInMonth(monthKey, includeToday = true) {
+  const [y, m] = monthKey.split('-').map(Number);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const isPast9PM = now.getHours() >= CONFIG.sessionEnd.h;
+  const days = [];
+  const lastDay = new Date(y, m, 0).getDate();
+  for (let day = 1; day <= lastDay; day++) {
+    const d = new Date(y, m - 1, day);
+    d.setHours(0, 0, 0, 0);
+    if (CONFIG.workDays.includes(d.getDay())) {
+      if (d < today || (includeToday && d.getTime() === today.getTime() && isPast9PM)) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
         days.push(`${yyyy}-${mm}-${dd}`);
       }
     }
@@ -38,7 +67,6 @@ function getPastWorkingDaysInMonth(monthKey) {
   return days;
 }
 
-// Helper: is a record an excused absence?
 function isExcused(record) {
   return record.excused === true || record.checkInTime === 'EXCUSED';
 }
@@ -46,11 +74,11 @@ function isExcused(record) {
 function calcMonthlySummaryWithAbsences(userId, monthKey) {
   const user = getUser(userId);
   const allRecords = getMonthAttendance(userId, monthKey);
-  // Real records = not excused (excused records don't count as sessions attended)
   const realRecords = allRecords.filter(r => !isExcused(r));
   const excusedRecords = allRecords.filter(r => isExcused(r));
   const excusedDates = excusedRecords.map(r => r.date);
 
+  // Working days that are NOT holidays
   const pastWorkingDays = getPastWorkingDaysInMonth(monthKey);
   const daysPresent = realRecords.length;
   const baseSalary = user.sessionRate * CONFIG.sessionsPerMonth;
@@ -58,7 +86,6 @@ function calcMonthlySummaryWithAbsences(userId, monthKey) {
   const earlyLeaveDeductions = realRecords.reduce((s, r) => s + (r.earlyLeaveDeduction || 0), 0);
 
   const presentDates = realRecords.map(r => r.date);
-  // Absent days = working days where coach is NEITHER present NOR excused
   const absentDays = pastWorkingDays.filter(d => !presentDates.includes(d) && !excusedDates.includes(d)).length;
   const absenceDeductions = absentDays * user.sessionRate;
 
@@ -72,6 +99,12 @@ export function renderAdminPage() {
   renderAdminSummary();
   renderAdminTab(adminActiveTab);
   listenToNotes(renderNotesBadge);
+  listenToHolidays(() => {
+    renderAdminSummary();
+    if (adminActiveTab === 'log' || adminActiveTab === 'overview' || adminActiveTab === 'holidays') {
+      renderAdminTab(adminActiveTab);
+    }
+  });
 }
 
 function renderNotesBadge(notes) {
@@ -106,6 +139,7 @@ function renderAdminTab(tab) {
   if (tab === 'overview') renderOverviewTab(content);
   else if (tab === 'log') renderLogTab(content);
   else if (tab === 'leaderboard') renderLeaderboardTab(content);
+  else if (tab === 'holidays') renderHolidaysTab(content);
   else if (tab === 'notes') renderNotesTab(content);
 }
 
@@ -161,16 +195,16 @@ function renderOverviewTab(container) {
 
 function renderLogTab(container) {
   const coaches = USERS.filter(u => !u.isAdmin);
-  const pastWorkingDays = getPastWorkingDaysInMonth(adminMonthKey);
+  const allWorkingDays = getAllWorkingDaysInMonth(adminMonthKey);
   const monthRecords = attendance.filter(a => getMonthKey(a.date) === adminMonthKey);
 
-  if (pastWorkingDays.length === 0) {
+  if (allWorkingDays.length === 0) {
     container.innerHTML = `<div class="empty-state"><span class="icon">📋</span>No working days have passed this month yet</div>`;
     return;
   }
 
   const byDate = {};
-  pastWorkingDays.forEach(date => { byDate[date] = []; });
+  allWorkingDays.forEach(date => { byDate[date] = []; });
   monthRecords.forEach(r => {
     if (byDate[r.date] !== undefined) byDate[r.date].push(r);
   });
@@ -178,6 +212,26 @@ function renderLogTab(container) {
   const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
   container.innerHTML = sortedDates.map(date => {
+    const holiday = getHoliday(date);
+
+    // If it's a holiday, render a special holiday card
+    if (holiday) {
+      return `
+        <div style="margin:0 16px 16px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid rgba(255,225,53,0.25);">
+          <div style="background:rgba(255,225,53,0.08);padding:14px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="font-size:32px;">${holiday.icon || '🕌'}</div>
+              <div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--yellow);">📅 ${new Date(date+'T00:00:00').toLocaleDateString('en-EG', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</div>
+                <div style="font-size:13px;color:var(--white);margin-top:2px;font-weight:700;">${holiday.name}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">🌙 Holiday — No work, no deductions</div>
+              </div>
+            </div>
+            <span class="badge" style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);">Holiday</span>
+          </div>
+        </div>`;
+    }
+
     const allRecords = byDate[date];
     const realRecords = allRecords.filter(r => !isExcused(r));
     const excusedRecords = allRecords.filter(r => isExcused(r));
@@ -188,7 +242,6 @@ function renderLogTab(container) {
     const totalPresent = realRecords.length;
     const totalDeductions = realRecords.reduce((s, r) => s + (r.lateDeduction || r.deduction || 0) + (r.earlyLeaveDeduction || 0), 0);
     const presentIds = realRecords.map(r => r.userId);
-    // Absent = not present AND not excused
     const absentCoaches = coaches.filter(u => !presentIds.includes(u.id) && !excusedIds.includes(u.id));
 
     const presentRows = realRecords.map(r => {
@@ -283,8 +336,8 @@ function renderLeaderboardTab(container) {
     return { u, s, totalLateMinutes, ontimeSessions };
   });
   const ranked = [...stats].sort((a, b) =>
+    a.s.totalDeductions - b.s.totalDeductions ||
     b.ontimeSessions - a.ontimeSessions ||
-    a.s.absentDays - b.s.absentDays ||
     a.totalLateMinutes - b.totalLateMinutes
   );
   const mostLate = [...stats].sort((a, b) => b.totalLateMinutes - a.totalLateMinutes)[0];
@@ -293,7 +346,7 @@ function renderLeaderboardTab(container) {
     <div style="padding:0 16px 16px;">
       <div style="margin-bottom:16px;">
         ${ranked.map((item, i) => {
-          const isTop = i === 0 && item.ontimeSessions > 0;
+          const isTop = i === 0 && item.s.totalDeductions === 0;
           const isMostLate = mostLate && item.u.id === mostLate.u.id && mostLate.totalLateMinutes > 0;
           return `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:8px;background:${isTop ? 'rgba(0,200,150,0.08)' : 'rgba(255,255,255,0.03)'};border:1px solid ${isTop ? 'rgba(0,200,150,0.2)' : 'rgba(255,255,255,0.07)'};border-radius:var(--radius-sm);">
@@ -313,6 +366,137 @@ function renderLeaderboardTab(container) {
         }).join('')}
       </div>
     </div>`;
+}
+
+// ─── HOLIDAYS TAB ───
+function renderHolidaysTab(container) {
+  const [y, m] = adminMonthKey.split('-').map(Number);
+  const monthStart = `${y}-${String(m).padStart(2,'0')}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const monthEnd = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+
+  // Get suggested holidays for this month + next month
+  const monthAndAfter = SUGGESTED_HOLIDAYS.filter(h => {
+    return h.startDate >= monthStart && h.startDate <= getDatePlusMonths(monthStart, 2);
+  });
+
+  // Get active holidays (added by admin)
+  const activeHolidays = [...holidays].sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+  // Suggested holidays NOT yet added
+  const activeStartDates = activeHolidays.map(h => h.startDate);
+  const suggestedNotAdded = monthAndAfter.filter(s => !activeStartDates.includes(s.startDate));
+
+  container.innerHTML = `
+    <div style="padding:0 16px 16px;">
+
+      <!-- ADD CUSTOM HOLIDAY -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:14px;font-weight:800;color:var(--green);margin-bottom:12px;letter-spacing:1px;">➕ ADD CUSTOM HOLIDAY</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Holiday Name</label>
+            <input type="text" id="holiday-name" placeholder="e.g. Eid al-Fitr" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--white);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Icon (emoji)</label>
+            <input type="text" id="holiday-icon" placeholder="🕌" maxlength="2" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--white);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">From</label>
+            <input type="date" id="holiday-start" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--white);font-size:14px;" />
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">To</label>
+            <input type="date" id="holiday-end" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--white);font-size:14px;" />
+          </div>
+        </div>
+        <button class="btn btn-green" onclick="addCustomHoliday()">Add Holiday</button>
+      </div>
+
+      <!-- SUGGESTED HOLIDAYS -->
+      ${suggestedNotAdded.length > 0 ? `
+        <div style="margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:800;color:var(--yellow);margin-bottom:10px;letter-spacing:1px;">💡 SUGGESTED EGYPTIAN HOLIDAYS</div>
+          ${suggestedNotAdded.map(s => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:8px;background:rgba(255,225,53,0.04);border:1px solid rgba(255,225,53,0.15);border-radius:var(--radius-sm);">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="font-size:28px;">${s.icon}</div>
+                <div>
+                  <div style="font-size:14px;font-weight:800;">${s.name}</div>
+                  <div style="font-size:12px;color:var(--text-muted);">${formatHolidayRange(s.startDate, s.endDate)} ${s.type === 'lunar' ? '· 🌙 Lunar (may vary)' : ''}</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-green btn-sm" style="width:auto;" onclick="acceptSuggestedHoliday('${s.startDate}','${s.endDate}','${s.name}','${s.icon}')">✅ Give Rest</button>
+              </div>
+            </div>`).join('')}
+        </div>
+      ` : ''}
+
+      <!-- ACTIVE HOLIDAYS -->
+      ${activeHolidays.length > 0 ? `
+        <div>
+          <div style="font-size:13px;font-weight:800;color:var(--green);margin-bottom:10px;letter-spacing:1px;">✅ ACTIVE HOLIDAYS (NO DEDUCTIONS)</div>
+          ${activeHolidays.map(h => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:8px;background:rgba(0,200,150,0.06);border:1px solid rgba(0,200,150,0.2);border-radius:var(--radius-sm);">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="font-size:28px;">${h.icon || '🕌'}</div>
+                <div>
+                  <div style="font-size:14px;font-weight:800;">${h.name}</div>
+                  <div style="font-size:12px;color:var(--text-muted);">${formatHolidayRange(h.startDate, h.endDate)}</div>
+                </div>
+              </div>
+              <button class="btn-danger" onclick="adminRemoveHoliday('${h.id}','${h.name}')">Remove</button>
+            </div>`).join('')}
+        </div>
+      ` : `
+        <div class="empty-state" style="margin-top:20px;"><span class="icon">🕌</span>No holidays added yet. Use suggestions above or add a custom one.</div>
+      `}
+    </div>`;
+}
+
+function getDatePlusMonths(dateStr, months) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setMonth(d.getMonth() + months);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatHolidayRange(start, end) {
+  const s = new Date(start + 'T00:00:00');
+  const e = new Date(end + 'T00:00:00');
+  if (start === end) {
+    return s.toLocaleDateString('en-EG', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  return `${s.toLocaleDateString('en-EG', { day: 'numeric', month: 'short' })} – ${e.toLocaleDateString('en-EG', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+}
+
+window.addCustomHoliday = async function() {
+  const name = document.getElementById('holiday-name').value.trim();
+  const icon = document.getElementById('holiday-icon').value.trim() || '🕌';
+  const startDate = document.getElementById('holiday-start').value;
+  const endDate = document.getElementById('holiday-end').value || startDate;
+  if (!name) { alert('Please enter a holiday name'); return; }
+  if (!startDate) { alert('Please select a start date'); return; }
+  if (endDate < startDate) { alert('End date must be after start date'); return; }
+
+  await saveHoliday({ name, icon, startDate, endDate });
+  renderAdminTab('holidays');
+}
+
+window.acceptSuggestedHoliday = async function(startDate, endDate, name, icon) {
+  if (!confirm(`Add "${name}" as a holiday?\nFrom ${startDate} to ${endDate}\n\nCoaches won't be deducted for these days.`)) return;
+  await saveHoliday({ name, icon, startDate, endDate });
+  renderAdminTab('holidays');
+}
+
+window.adminRemoveHoliday = async function(id, name) {
+  if (!confirm(`Remove "${name}" from holidays?\nCoaches will be expected to attend on these dates.`)) return;
+  await removeHoliday(id);
+  renderAdminTab('holidays');
 }
 
 function renderNotesTab(container) {
@@ -353,7 +537,7 @@ function renderNotesTab(container) {
 window.adminMarkExcused = async function(userId, date) {
   const u = getUser(userId);
   const reason = prompt(`Why is ${u.name} excused on ${date}?\n(e.g. Tournament, Sick, Family emergency)\n\nLeave blank for "Excused by admin"`);
-  if (reason === null) return; // user cancelled
+  if (reason === null) return;
   const finalReason = reason.trim() || 'Excused by admin';
   await markAsExcused(userId, date, finalReason);
   renderAdminPage();
@@ -531,7 +715,6 @@ function generateSalarySlip(userId) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
 
-  // Combine real and excused records for the log
   const allRecords = [...s.records, ...(s.excusedRecords || [])].sort((a,b) => a.date.localeCompare(b.date));
 
   if (allRecords.length === 0) {
@@ -539,16 +722,11 @@ function generateSalarySlip(userId) {
     pdf.text('No sessions attended this month.', 15, y);
   } else {
     allRecords.forEach(r => {
-      if (y > 280) {
-        pdf.addPage();
-        y = 20;
-      }
+      if (y > 280) { pdf.addPage(); y = 20; }
       pdf.setTextColor(...navyRGB);
       pdf.text(r.date, 15, y);
-
       if (isExcused(r)) {
-        pdf.text('—', 60, y);
-        pdf.text('—', 95, y);
+        pdf.text('—', 60, y); pdf.text('—', 95, y);
         pdf.setTextColor(255, 180, 0);
         pdf.text(`Excused${r.excusedReason ? ' (' + r.excusedReason + ')' : ''}`, 130, y);
         pdf.text('—', 195, y, { align: 'right' });
