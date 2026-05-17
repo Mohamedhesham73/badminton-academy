@@ -43,11 +43,12 @@ function listenToNotes(callback) {
     snapshot.forEach(d => notes.push({ id: d.id, ...d.data() }));
     callback(notes);
   });
+  return notesListener;
 }
 
 function listenToMyNotes(userId, callback) {
   const q = query(collection(db, 'notes'), orderBy('timestamp', 'desc'));
-  onSnapshot(q, (snapshot) => {
+  return onSnapshot(q, (snapshot) => {
     const notes = [];
     snapshot.forEach(d => {
       const data = d.data();

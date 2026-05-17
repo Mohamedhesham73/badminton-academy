@@ -1,7 +1,9 @@
-import { login, logout, restoreSession, loadAttendance, listenToAttendance } from './data.js';
-import { renderCoachPage } from './coach.js';
-import { renderAdminPage } from './admin.js';
+import { login, logout, restoreSession, loadAttendance, loadHolidays, listenToAttendance } from './data.js';
+import { renderCoachPage, cleanupCoachPage } from './coach.js';
+import { renderAdminPage, cleanupAdminPage } from './admin.js';
 import { initNotifications } from './notifications.js';
+
+let attendanceUnsubscribe = null;
 
 // ─── APP ROUTER ───
 function showPage(id) {
@@ -39,7 +41,7 @@ window.doLogin = async function() {
 
   try {
     await Promise.race([
-      loadAttendance(),
+      Promise.all([loadAttendance(), loadHolidays()]),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]);
   } catch(e) {}
@@ -57,13 +59,20 @@ window.doLogin = async function() {
     initNotifications();
   }
 
-  listenToAttendance(() => {
+  if (attendanceUnsubscribe) attendanceUnsubscribe();
+  attendanceUnsubscribe = listenToAttendance(() => {
     if (user.isAdmin) renderAdminPage();
     else renderCoachPage();
   });
 }
 
 window.doLogout = function() {
+  if (attendanceUnsubscribe) {
+    attendanceUnsubscribe();
+    attendanceUnsubscribe = null;
+  }
+  cleanupCoachPage();
+  cleanupAdminPage();
   logout();
   showPage('page-login');
   document.getElementById('login-email').value = '';
@@ -81,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const user = restoreSession();
   if (user) {
     await Promise.race([
-      loadAttendance(),
+      Promise.all([loadAttendance(), loadHolidays()]),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]).catch(() => {});
 
@@ -94,7 +103,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       initNotifications();
     }
 
-    listenToAttendance(() => {
+    if (attendanceUnsubscribe) attendanceUnsubscribe();
+    attendanceUnsubscribe = listenToAttendance(() => {
       if (user.isAdmin) renderAdminPage();
       else renderCoachPage();
     });

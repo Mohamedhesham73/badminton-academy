@@ -1,6 +1,9 @@
 // ─── COACH PAGE ───
-import { CONFIG, USERS, attendance, currentUser, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials, requestCoachRestDay, removeAttendance } from './data.js';
+import { CONFIG, USERS, attendance, currentUser, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials, requestCoachRestDay, removeAttendance, getAvailableRestDays, isRestDayTaken } from './data.js';
 import { sendNote, listenToMyNotes, formatNoteTime } from './notes.js';
+
+let coachClockTimer = null;
+let coachNotesUnsubscribe = null;
 
 function to12h(hour, minute) {
   const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -180,6 +183,17 @@ function showRestrictions() {
 
 window.showRestrictions = showRestrictions;
 
+export function cleanupCoachPage() {
+  if (coachClockTimer) {
+    clearInterval(coachClockTimer);
+    coachClockTimer = null;
+  }
+  if (coachNotesUnsubscribe) {
+    coachNotesUnsubscribe();
+    coachNotesUnsubscribe = null;
+  }
+}
+
 export function renderCoachPage() {
   const u = currentUser;
   const monthKey = getCurrentMonthKey();
@@ -217,7 +231,7 @@ baseSalaryEl.innerHTML = `
 
   renderCheckinArea();
   updateClock();
-  setInterval(updateClock, 1000);
+  if (!coachClockTimer) coachClockTimer = setInterval(updateClock, 1000);
   renderCoachHistory(u.id, monthKey);
   renderRestDaySection(u, monthKey);
   renderNotesSection(u);
@@ -598,22 +612,28 @@ function renderRestDaySection(u, monthKey) {
     return;
   }
 
+  const days = getAvailableRestDays(monthKey, u.id);
+  const dayButtons = days.map(day => {
+    const takenUser = day.takenBy ? USERS.find(coach => coach.id === day.takenBy) : null;
+    return `
+      <button class="btn ${day.available ? 'btn-outline' : 'btn-disabled'} btn-sm" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;text-align:left;" ${day.available ? `onclick="submitRestDay('${day.date}')"` : 'disabled'}>
+        <span>${formatDate(day.date)}</span>
+        <span style="font-size:11px;color:${day.available ? 'var(--green)' : 'var(--text-muted)'};">${day.available ? 'Available' : `Taken${takenUser ? ' by ' + takenUser.name : ''}`}</span>
+      </button>`;
+  }).join('');
+
   container.innerHTML = `
     <div class="card" style="margin:0 16px 16px;">
       <div style="font-size:14px;font-weight:800;color:var(--green);margin-bottom:8px;">Choose your monthly rest day</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Pick one upcoming working day this month. Admin will see it and salary will not be deducted.</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input type="date" id="rest-day-input" min="${minDate}" max="${maxDate}" style="flex:1;min-width:180px;padding:10px 12px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--white);font-size:14px;" />
-        <button class="btn btn-green btn-sm" style="width:auto;" onclick="submitRestDay()">Save Rest</button>
-      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Choose one future working day. It must be saved at least one day before, and only one coach can rest on the same day.</div>
+      ${dayButtons || `<div style="font-size:13px;color:var(--text-muted);">No future working days left this month.</div>`}
       <div id="rest-day-status" style="margin-top:8px;font-size:13px;"></div>
     </div>`;
 }
 
-window.submitRestDay = async function() {
-  const input = document.getElementById('rest-day-input');
+window.submitRestDay = async function(selectedDate = null) {
   const status = document.getElementById('rest-day-status');
-  const date = input?.value;
+  const date = selectedDate;
   const monthKey = getCurrentMonthKey();
   const records = getMonthAttendance(currentUser.id, monthKey);
 
@@ -623,7 +643,7 @@ window.submitRestDay = async function() {
   if (date <= todayStr()) { status.textContent = 'Choose a future day at least one day before the rest day.'; status.style.color = 'var(--orange)'; return; }
   if (!isWorkDay(new Date(date + 'T00:00:00'))) { status.textContent = 'Rest day must be Saturday, Monday, or Wednesday.'; status.style.color = 'var(--orange)'; return; }
   if (records.some(isCoachRestDay)) { status.textContent = 'You already chose your rest day this month.'; status.style.color = 'var(--orange)'; return; }
-  if (attendance.some(r => r.date === date && r.userId !== currentUser.id && isCoachRestDay(r))) {
+  if (isRestDayTaken(date, currentUser.id)) {
     status.textContent = 'This day is already chosen, so you can\'t rest on the same day. Choose another day.';
     status.style.color = 'var(--orange)';
     return;
@@ -632,8 +652,19 @@ window.submitRestDay = async function() {
 
   status.textContent = 'Saving...';
   status.style.color = 'var(--text-muted)';
-  await requestCoachRestDay(currentUser.id, date);
-  renderCoachPage();
+  try {
+    await requestCoachRestDay(currentUser.id, date);
+    renderCoachPage();
+  } catch (e) {
+    if (e.message === 'REST_DAY_TAKEN') {
+      status.textContent = 'This day is already chosen, so you can\'t rest on the same day. Choose another day.';
+    } else if (e.message === 'REST_DAY_HAS_RECORD') {
+      status.textContent = 'There is already an attendance/excuse record for this day.';
+    } else {
+      status.textContent = 'Failed to save rest day. Try again.';
+    }
+    status.style.color = 'var(--red)';
+  }
 }
 
 window.cancelCoachRestDay = async function(date) {
@@ -670,7 +701,8 @@ function renderNotesSection(u) {
     </div>
     <div id="my-notes-list" style="margin:0 16px;"></div>
   `;
-  listenToMyNotes(u.id, (notes) => {
+  if (coachNotesUnsubscribe) coachNotesUnsubscribe();
+  coachNotesUnsubscribe = listenToMyNotes(u.id, (notes) => {
     const list = document.getElementById('my-notes-list');
     if (!list) return;
     if (notes.length === 0) {

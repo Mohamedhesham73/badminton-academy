@@ -4,6 +4,9 @@ import { listenToNotes, markNoteRead, deleteNote, formatNoteTime } from './notes
 
 let adminActiveTab = 'overview';
 let adminMonthKey = getCurrentMonthKey();
+let adminNotesBadgeUnsubscribe = null;
+let adminHolidayUnsubscribe = null;
+let adminNotesTabUnsubscribe = null;
 
 function avatarHtml(user, size = 36) {
   const fontSize = Math.round(size * 0.33);
@@ -98,17 +101,36 @@ function calcMonthlySummaryWithAbsences(userId, monthKey) {
   return { daysPresent, baseSalary, totalDeductions, lateDeductions, earlyLeaveDeductions, absenceDeductions, absentDays, netSalary, records: realRecords, excusedRecords };
 }
 
+export function cleanupAdminPage() {
+  if (adminNotesBadgeUnsubscribe) {
+    adminNotesBadgeUnsubscribe();
+    adminNotesBadgeUnsubscribe = null;
+  }
+  if (adminHolidayUnsubscribe) {
+    adminHolidayUnsubscribe();
+    adminHolidayUnsubscribe = null;
+  }
+  if (adminNotesTabUnsubscribe) {
+    adminNotesTabUnsubscribe();
+    adminNotesTabUnsubscribe = null;
+  }
+}
+
 export function renderAdminPage() {
   document.getElementById('admin-month-label').textContent = formatMonthLabel(adminMonthKey);
   renderAdminSummary();
   renderAdminTab(adminActiveTab);
-  listenToNotes(renderNotesBadge);
-  listenToHolidays(() => {
-    renderAdminSummary();
-    if (adminActiveTab === 'log' || adminActiveTab === 'overview' || adminActiveTab === 'holidays') {
-      renderAdminTab(adminActiveTab);
-    }
-  });
+  if (!adminNotesBadgeUnsubscribe) {
+    adminNotesBadgeUnsubscribe = listenToNotes(renderNotesBadge);
+  }
+  if (!adminHolidayUnsubscribe) {
+    adminHolidayUnsubscribe = listenToHolidays(() => {
+      renderAdminSummary();
+      if (adminActiveTab === 'log' || adminActiveTab === 'overview' || adminActiveTab === 'holidays') {
+        renderAdminTab(adminActiveTab);
+      }
+    });
+  }
 }
 
 function renderNotesBadge(notes) {
@@ -149,7 +171,21 @@ function renderAdminTab(tab) {
 
 function renderOverviewTab(container) {
   const coaches = USERS.filter(u => !u.isAdmin);
-  container.innerHTML = coaches.map(u => {
+  const restDays = attendance
+    .filter(r => getMonthKey(r.date) === adminMonthKey && isCoachRestDay(r))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const restDaysSummary = `
+    <div class="coach-row fade-in" style="border-color:rgba(255,225,53,0.2);background:rgba(255,225,53,0.04);">
+      <div style="font-size:14px;font-weight:800;color:var(--yellow);margin-bottom:10px;">Rest days this month</div>
+      ${restDays.length > 0 ? `
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${restDays.map(r => {
+            const u = getUser(r.userId);
+            return `<span class="badge" style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);">${r.date.slice(5)} · ${u?.name || 'Coach'}</span>`;
+          }).join('')}
+        </div>` : `<div style="font-size:13px;color:var(--text-muted);">No coach rest days selected yet.</div>`}
+    </div>`;
+  container.innerHTML = restDaysSummary + coaches.map(u => {
     const s = calcMonthlySummaryWithAbsences(u.id, adminMonthKey);
     const pct = Math.min(100, (s.daysPresent / CONFIG.sessionsPerMonth) * 100);
     return `
@@ -508,7 +544,8 @@ window.adminRemoveHoliday = async function(id, name) {
 
 function renderNotesTab(container) {
   container.innerHTML = `<div id="admin-notes-list" style="padding:0 16px;"></div>`;
-  listenToNotes((notes) => {
+  if (adminNotesTabUnsubscribe) adminNotesTabUnsubscribe();
+  adminNotesTabUnsubscribe = listenToNotes((notes) => {
     const list = document.getElementById('admin-notes-list');
     if (!list) return;
     renderNotesBadge(notes);
@@ -735,7 +772,7 @@ function generateSalarySlip(userId) {
       if (isExcused(r)) {
         pdf.text('—', 60, y); pdf.text('—', 95, y);
         pdf.setTextColor(255, 180, 0);
-        pdf.text(`Excused${r.excusedReason ? ' (' + r.excusedReason + ')' : ''}`, 130, y);
+        pdf.text(isCoachRestDay(r) ? 'Rest day' : `Excused${r.excusedReason ? ' (' + r.excusedReason + ')' : ''}`, 130, y);
         pdf.text('—', 195, y, { align: 'right' });
       } else {
         pdf.text(r.checkInTime, 60, y);

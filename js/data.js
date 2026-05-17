@@ -1,6 +1,6 @@
 // ─── FIREBASE IMPORTS ───
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD_3yHweVEDdQGLXkj5uLm6LdZAGezAU44",
@@ -96,14 +96,18 @@ async function updateAttendanceRecord(record) {
 
 async function removeAttendance(userId, date) {
   try {
+    const existing = attendance.find(a => a.userId === userId && a.date === date);
     const id = `${userId}_${date}`;
     await deleteDoc(doc(db, 'attendance', id));
+    if (existing?.restDay === true || existing?.excusedBy === 'coach' || existing?.excusedReason === 'Coach rest day') {
+      await deleteDoc(doc(db, 'restDays', date));
+    }
     attendance = attendance.filter(a => !(a.userId === userId && a.date === date));
   } catch(e) { console.error('Error removing:', e); }
 }
 
-async function markAsExcused(userId, date, reason = 'Excused by admin', meta = {}) {
-  const record = {
+function buildExcusedRecord(userId, date, reason = 'Excused by admin', meta = {}) {
+  return {
     userId,
     date,
     checkInTime: 'EXCUSED',
@@ -117,6 +121,10 @@ async function markAsExcused(userId, date, reason = 'Excused by admin', meta = {
     excusedReason: reason,
     ...meta
   };
+}
+
+async function markAsExcused(userId, date, reason = 'Excused by admin', meta = {}) {
+  const record = buildExcusedRecord(userId, date, reason, meta);
   await saveAttendance(record);
   const idx = attendance.findIndex(a => a.userId === userId && a.date === date);
   if (idx >= 0) attendance[idx] = record;
@@ -125,14 +133,81 @@ async function markAsExcused(userId, date, reason = 'Excused by admin', meta = {
 }
 
 async function requestCoachRestDay(userId, date) {
-  return markAsExcused(userId, date, 'Coach rest day', {
+  const user = getUser(userId);
+  const record = buildExcusedRecord(userId, date, 'Coach rest day', {
     restDay: true,
     excusedBy: 'coach'
   });
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const restRef = doc(db, 'restDays', date);
+      const attendanceRef = doc(db, 'attendance', `${userId}_${date}`);
+      const restSnap = await transaction.get(restRef);
+      const attendanceSnap = await transaction.get(attendanceRef);
+      if (restSnap.exists() && restSnap.data().userId !== userId) {
+        throw new Error('REST_DAY_TAKEN');
+      }
+      if (attendanceSnap.exists() && !isCoachRestDay(attendanceSnap.data())) {
+        throw new Error('REST_DAY_HAS_RECORD');
+      }
+      transaction.set(restRef, {
+        date,
+        userId,
+        userName: user?.name || 'Coach',
+        createdAt: new Date().toISOString()
+      });
+      transaction.set(attendanceRef, record);
+    });
+  } catch (e) {
+    if (e.message === 'REST_DAY_TAKEN' || e.message === 'REST_DAY_HAS_RECORD') throw e;
+    console.error('Error saving rest day:', e);
+    throw e;
+  }
+
+  const idx = attendance.findIndex(a => a.userId === userId && a.date === date);
+  if (idx >= 0) attendance[idx] = record;
+  else attendance.push(record);
+  return record;
+}
+
+function isExcusedRecord(record) {
+  return record.excused === true || record.checkInTime === 'EXCUSED';
+}
+
+function isCoachRestDay(record) {
+  return isExcusedRecord(record) && (record.restDay === true || record.excusedBy === 'coach' || record.excusedReason === 'Coach rest day');
+}
+
+function getCoachRestDays(monthKey = getCurrentMonthKey()) {
+  return attendance.filter(a => isCoachRestDay(a) && getMonthKey(a.date) === monthKey);
+}
+
+function isRestDayTaken(date, exceptUserId = null) {
+  return attendance.some(a => isCoachRestDay(a) && a.date === date && a.userId !== exceptUserId);
+}
+
+function getAvailableRestDays(monthKey = getCurrentMonthKey(), exceptUserId = null) {
+  const [y, m] = monthKey.split('-').map(Number);
+  const today = todayStr();
+  const days = [];
+  const lastDay = new Date(y, m, 0).getDate();
+  for (let day = 1; day <= lastDay; day++) {
+    const d = new Date(y, m - 1, day);
+    const date = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (date <= today) continue;
+    if (!isWorkDay(d)) continue;
+    days.push({
+      date,
+      available: !isRestDayTaken(date, exceptUserId),
+      takenBy: attendance.find(a => isCoachRestDay(a) && a.date === date && a.userId !== exceptUserId)?.userId || null
+    });
+  }
+  return days;
 }
 
 function listenToAttendance(callback) {
-  onSnapshot(collection(db, 'attendance'), (snapshot) => {
+  return onSnapshot(collection(db, 'attendance'), (snapshot) => {
     attendance = [];
     snapshot.forEach(d => attendance.push(d.data()));
     callback();
@@ -169,7 +244,7 @@ async function removeHoliday(id) {
 }
 
 function listenToHolidays(callback) {
-  onSnapshot(collection(db, 'holidays'), (snapshot) => {
+  return onSnapshot(collection(db, 'holidays'), (snapshot) => {
     holidays = [];
     snapshot.forEach(d => holidays.push({ ...d.data(), id: d.id }));
     if (callback) callback();
@@ -273,12 +348,14 @@ function getCurrentMonthKey() { return todayStr().slice(0, 7); }
 
 function calcMonthlySummary(userId, monthKey) {
   const user = getUser(userId);
-  const records = getMonthAttendance(userId, monthKey);
+  const allRecords = getMonthAttendance(userId, monthKey);
+  const records = allRecords.filter(r => !isExcusedRecord(r));
+  const excusedRecords = allRecords.filter(r => isExcusedRecord(r));
   const daysPresent = records.length;
   const baseSalary = user.sessionRate * CONFIG.sessionsPerMonth;
   const totalDeductions = records.reduce((s, r) => s + (r.lateDeduction || 0) + (r.earlyLeaveDeduction || 0) + (r.deduction || 0), 0);
   const netSalary = baseSalary - totalDeductions;
-  return { daysPresent, baseSalary, totalDeductions, netSalary, records };
+  return { daysPresent, baseSalary, totalDeductions, netSalary, records, excusedRecords };
 }
 
 function hasCheckedInToday(userId) {
@@ -376,6 +453,7 @@ export {
   loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach, markAsExcused, requestCoachRestDay,
   loadHolidays, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange,
   getUser, getUserByEmail, todayStr, isWorkDay, getCoachStartTime,
+  isExcusedRecord, isCoachRestDay, getCoachRestDays, isRestDayTaken, getAvailableRestDays,
   calcLateMinutes, calcDeduction, calcDeductionForUser, getLateStatus,
   getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary,
   hasCheckedInToday, formatDate, formatMonthLabel, initials, haversineMeters,
