@@ -619,7 +619,14 @@ window.cancelCoachRestDay = async function(date) {
 }
 
 function isNotesAllowed() {
-  return true;
+  const now = new Date();
+  const day = now.getDay();
+  const hour = now.getHours();
+  const isWorkingDay = CONFIG.workDays.includes(day);
+  if (!isWorkingDay) return true;
+  if (hour < 14) return true;
+  if (hour >= 21) return true;
+  return false;
 }
 
 function renderNotesSection(u) {
