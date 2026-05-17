@@ -494,6 +494,30 @@ function renderCoachHistory(userId, monthKey) {
     return;
   }
   container.innerHTML = records.map(r => {
+    if (isCoachRestDay(r)) {
+      return `
+      <div class="attendance-row fade-in">
+        <div>
+          <div class="att-date">${formatDate(r.date)}</div>
+          <div class="att-time">Monthly rest day · No deduction</div>
+        </div>
+        <div class="att-right">
+          <span class="badge badge-yellow">Rest day</span>
+        </div>
+      </div>`;
+    }
+    if (isExcusedRecord(r)) {
+      return `
+      <div class="attendance-row fade-in">
+        <div>
+          <div class="att-date">${formatDate(r.date)}</div>
+          <div class="att-time">${r.excusedReason || 'Excused'} · No deduction</div>
+        </div>
+        <div class="att-right">
+          <span class="badge badge-yellow">Excused</span>
+        </div>
+      </div>`;
+    }
     const status = getLateStatus(r.lateMinutes);
     const badges = {
       ontime:    `<span class="badge badge-green">On time</span>`,
@@ -519,15 +543,83 @@ function renderCoachHistory(userId, monthKey) {
 }
 
 // ─── NOTES SECTION ───
+function renderRestDaySection(u, monthKey) {
+  const container = document.getElementById('coach-rest-day');
+  if (!container) return;
+
+  const today = todayStr();
+  const monthStart = `${monthKey}-01`;
+  const minDate = today > monthStart ? today : monthStart;
+  const maxDate = monthEndForInput(monthKey);
+  const records = getMonthAttendance(u.id, monthKey);
+  const restDay = records.find(isCoachRestDay);
+  const currentMonth = monthKey === getCurrentMonthKey();
+
+  if (!currentMonth) {
+    container.innerHTML = `
+      <div class="card" style="margin:0 16px 16px;">
+        <div style="font-size:13px;color:var(--text-muted);">Rest days can only be chosen for the current month.</div>
+      </div>`;
+    return;
+  }
+
+  if (restDay) {
+    const canCancel = restDay.date >= today;
+    container.innerHTML = `
+      <div class="card" style="margin:0 16px 16px;border-color:rgba(255,225,53,0.22);background:rgba(255,225,53,0.05);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:14px;font-weight:800;color:var(--yellow);margin-bottom:4px;">Rest day saved</div>
+            <div style="font-size:13px;color:var(--white);">${formatDate(restDay.date)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">No absence deduction will be counted for this day.</div>
+          </div>
+          ${canCancel ? `<button class="btn-danger" onclick="cancelCoachRestDay('${restDay.date}')">Cancel</button>` : ''}
+        </div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card" style="margin:0 16px 16px;">
+      <div style="font-size:14px;font-weight:800;color:var(--green);margin-bottom:8px;">Choose your monthly rest day</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Pick one upcoming working day this month. Admin will see it and salary will not be deducted.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="date" id="rest-day-input" min="${minDate}" max="${maxDate}" style="flex:1;min-width:180px;padding:10px 12px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--white);font-size:14px;" />
+        <button class="btn btn-green btn-sm" style="width:auto;" onclick="submitRestDay()">Save Rest</button>
+      </div>
+      <div id="rest-day-status" style="margin-top:8px;font-size:13px;"></div>
+    </div>`;
+}
+
+window.submitRestDay = async function() {
+  const input = document.getElementById('rest-day-input');
+  const status = document.getElementById('rest-day-status');
+  const date = input?.value;
+  const monthKey = getCurrentMonthKey();
+  const records = getMonthAttendance(currentUser.id, monthKey);
+
+  if (!status) return;
+  if (!date) { status.textContent = 'Please choose a date first.'; status.style.color = 'var(--orange)'; return; }
+  if (date.slice(0, 7) !== monthKey) { status.textContent = 'Choose a day in the current month.'; status.style.color = 'var(--orange)'; return; }
+  if (date < todayStr()) { status.textContent = 'Choose today or an upcoming day.'; status.style.color = 'var(--orange)'; return; }
+  if (!isWorkDay(new Date(date + 'T00:00:00'))) { status.textContent = 'Rest day must be Saturday, Monday, or Wednesday.'; status.style.color = 'var(--orange)'; return; }
+  if (records.some(isCoachRestDay)) { status.textContent = 'You already chose your rest day this month.'; status.style.color = 'var(--orange)'; return; }
+  if (records.some(r => r.date === date && !isCoachRestDay(r))) { status.textContent = 'There is already an attendance/excuse record for this day.'; status.style.color = 'var(--orange)'; return; }
+
+  status.textContent = 'Saving...';
+  status.style.color = 'var(--text-muted)';
+  await requestCoachRestDay(currentUser.id, date);
+  renderCoachPage();
+}
+
+window.cancelCoachRestDay = async function(date) {
+  if (!confirm(`Cancel your rest day on ${date}?`)) return;
+  await removeAttendance(currentUser.id, date);
+  renderCoachPage();
+}
+
 function isNotesAllowed() {
-  const now = new Date();
-  const day = now.getDay();
-  const hour = now.getHours();
-  const isWorkingDay = CONFIG.workDays.includes(day);
-  if (!isWorkingDay) return true;
-  if (hour < 14) return true;
-  if (hour >= 21) return true;
-  return false;
+  return true;
 }
 
 function renderNotesSection(u) {
