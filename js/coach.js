@@ -1,5 +1,5 @@
 // ─── COACH PAGE ───
-import { CONFIG, USERS, attendance, currentUser, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials } from './data.js';
+import { CONFIG, USERS, attendance, currentUser, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials, requestCoachRestDay, removeAttendance } from './data.js';
 import { sendNote, listenToMyNotes, formatNoteTime } from './notes.js';
 
 function to12h(hour, minute) {
@@ -23,6 +23,20 @@ const QUOTES = [
 ];
 
 function getDailyQuote() { return QUOTES[new Date().getDate() % QUOTES.length]; }
+
+function isExcusedRecord(record) {
+  return record.excused === true || record.checkInTime === 'EXCUSED';
+}
+
+function isCoachRestDay(record) {
+  return isExcusedRecord(record) && (record.restDay === true || record.excusedBy === 'coach' || record.excusedReason === 'Coach rest day');
+}
+
+function monthEndForInput(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return `${monthKey}-${String(lastDay).padStart(2, '0')}`;
+}
 
 function launchConfetti() {
   const colors = ['#00C896', '#FFE135', '#ff4d6d', '#ffffff', '#00a8ff'];
@@ -196,6 +210,7 @@ baseSalaryEl.innerHTML = `
   updateClock();
   setInterval(updateClock, 1000);
   renderCoachHistory(u.id, monthKey);
+  renderRestDaySection(u, monthKey);
   renderNotesSection(u);
 }
 
@@ -242,6 +257,10 @@ function renderCheckinArea() {
 
   // If checked in already
   if (todayRecord) {
+    if (isCoachRestDay(todayRecord)) {
+      renderRestDayToday(area, todayRecord);
+      return;
+    }
     renderReaction(area, todayRecord, getLateStatus(todayRecord.lateMinutes));
     return;
   }
@@ -291,6 +310,17 @@ function renderCheckinArea() {
     <button class="btn btn-green ${shakeClass}" onclick="attemptCheckin()">🏸 Check In Now</button>
     <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:10px;">Location verification required</p>
     <div id="checkin-status" style="margin-top:12px;"></div>
+  `;
+}
+
+function renderRestDayToday(container, record) {
+  container.innerHTML = `
+    <div class="checkin-time"><div id="live-clock" class="checkin-clock">--:--:--</div><div id="live-date" class="checkin-date-str"></div></div>
+    <div class="reaction-box on-time">
+      <div class="reaction-title">REST DAY</div>
+      <div class="reaction-msg">${formatDate(record.date)} is saved as your monthly rest day.</div>
+      <div style="margin-top:10px;font-size:13px;color:var(--green);font-weight:800;">No deduction for today</div>
+    </div>
   `;
 }
 

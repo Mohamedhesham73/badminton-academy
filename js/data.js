@@ -102,7 +102,7 @@ async function removeAttendance(userId, date) {
   } catch(e) { console.error('Error removing:', e); }
 }
 
-async function markAsExcused(userId, date, reason = 'Excused by admin') {
+async function markAsExcused(userId, date, reason = 'Excused by admin', meta = {}) {
   const record = {
     userId,
     date,
@@ -114,13 +114,21 @@ async function markAsExcused(userId, date, reason = 'Excused by admin') {
     earlyLeaveMinutes: 0,
     earlyLeaveDeduction: 0,
     excused: true,
-    excusedReason: reason
+    excusedReason: reason,
+    ...meta
   };
   await saveAttendance(record);
   const idx = attendance.findIndex(a => a.userId === userId && a.date === date);
   if (idx >= 0) attendance[idx] = record;
   else attendance.push(record);
   return record;
+}
+
+async function requestCoachRestDay(userId, date) {
+  return markAsExcused(userId, date, 'Coach rest day', {
+    restDay: true,
+    excusedBy: 'coach'
+  });
 }
 
 function listenToAttendance(callback) {
@@ -365,7 +373,7 @@ function restoreSession() {
 
 export {
   db, CONFIG, USERS, attendance, currentUser, holidays, SUGGESTED_HOLIDAYS,
-  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach, markAsExcused,
+  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach, markAsExcused, requestCoachRestDay,
   loadHolidays, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange,
   getUser, getUserByEmail, todayStr, isWorkDay, getCoachStartTime,
   calcLateMinutes, calcDeduction, calcDeductionForUser, getLateStatus,
