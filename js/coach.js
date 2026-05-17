@@ -604,6 +604,11 @@ window.submitRestDay = async function() {
   if (date < todayStr()) { status.textContent = 'Choose today or an upcoming day.'; status.style.color = 'var(--orange)'; return; }
   if (!isWorkDay(new Date(date + 'T00:00:00'))) { status.textContent = 'Rest day must be Saturday, Monday, or Wednesday.'; status.style.color = 'var(--orange)'; return; }
   if (records.some(isCoachRestDay)) { status.textContent = 'You already chose your rest day this month.'; status.style.color = 'var(--orange)'; return; }
+  if (attendance.some(r => r.date === date && r.userId !== currentUser.id && isCoachRestDay(r))) {
+    status.textContent = 'This day is already chosen, so you can\'t rest on the same day. Choose another day.';
+    status.style.color = 'var(--orange)';
+    return;
+  }
   if (records.some(r => r.date === date && !isCoachRestDay(r))) { status.textContent = 'There is already an attendance/excuse record for this day.'; status.style.color = 'var(--orange)'; return; }
 
   status.textContent = 'Saving...';

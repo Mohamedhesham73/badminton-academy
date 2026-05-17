@@ -71,6 +71,10 @@ function isExcused(record) {
   return record.excused === true || record.checkInTime === 'EXCUSED';
 }
 
+function isCoachRestDay(record) {
+  return isExcused(record) && (record.restDay === true || record.excusedBy === 'coach' || record.excusedReason === 'Coach rest day');
+}
+
 function calcMonthlySummaryWithAbsences(userId, monthKey) {
   const user = getUser(userId);
   const allRecords = getMonthAttendance(userId, monthKey);
@@ -174,7 +178,7 @@ function renderOverviewTab(container) {
           </div>` : ''}
         ${s.excusedRecords && s.excusedRecords.length > 0 ? `
           <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
-            ${s.excusedRecords.map(r => `<span style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);padding:3px 8px;border-radius:8px;font-size:11px;">🛡️ ${r.date.slice(5)} ${r.excusedReason ? '· ' + r.excusedReason : ''}</span>`).join('')}
+            ${s.excusedRecords.map(r => `<span style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);padding:3px 8px;border-radius:8px;font-size:11px;">${isCoachRestDay(r) ? 'Rest day' : 'Excused'} ${r.date.slice(5)} ${r.excusedReason ? '· ' + r.excusedReason : ''}</span>`).join('')}
           </div>` : ''}
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           ${s.records.sort((a,b) => b.date.localeCompare(a.date)).map(r => {
@@ -275,17 +279,20 @@ function renderLogTab(container) {
 
     const excusedRows = excusedRecords.map(r => {
       const u = getUser(r.userId);
+      const restDay = isCoachRestDay(r);
+      const reason = restDay ? 'Coach monthly rest day' : (r.excusedReason || 'Excused by admin');
+      const badgeText = restDay ? 'Rest day' : 'Excused';
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);background:rgba(255,225,53,0.04);">
           <div style="display:flex;align-items:center;gap:10px;">
             ${avatarHtml(u, 32)}
             <div>
               <div style="font-size:14px;font-weight:700;">${u.name}</div>
-              <div style="font-size:12px;color:var(--text-muted);">${r.excusedReason || 'Excused by admin'} · No deduction</div>
+              <div style="font-size:12px;color:var(--text-muted);">${reason} · No deduction</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <span class="badge" style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);">🛡️ Excused</span>
+            <span class="badge" style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);">${badgeText}</span>
             <button class="btn-danger" onclick="adminRemoveEntry(${r.userId},'${r.date}')">Remove</button>
           </div>
         </div>`;
