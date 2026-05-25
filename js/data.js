@@ -197,6 +197,7 @@ function getAvailableRestDays(monthKey = getCurrentMonthKey(), exceptUserId = nu
     const date = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     if (date <= today) continue;
     if (!isWorkDay(d)) continue;
+    if (isHoliday(date)) continue;
     days.push({
       date,
       available: !isRestDayTaken(date, exceptUserId),

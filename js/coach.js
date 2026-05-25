@@ -1,9 +1,10 @@
 // ─── COACH PAGE ───
-import { CONFIG, USERS, attendance, currentUser, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials, requestCoachRestDay, removeAttendance, getAvailableRestDays, isRestDayTaken } from './data.js';
+import { CONFIG, USERS, attendance, currentUser, holidays, listenToHolidays, isHoliday, getHoliday, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials, requestCoachRestDay, removeAttendance, getAvailableRestDays, isRestDayTaken } from './data.js';
 import { sendNote, listenToMyNotes, formatNoteTime } from './notes.js';
 
 let coachClockTimer = null;
 let coachNotesUnsubscribe = null;
+let coachHolidayUnsubscribe = null;
 
 function to12h(hour, minute) {
   const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -48,6 +49,42 @@ function datePlusDaysStr(dateStr, days) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+function formatHolidayRange(start, end) {
+  const s = new Date(start + 'T00:00:00');
+  const e = new Date(end + 'T00:00:00');
+  if (start === end) {
+    return s.toLocaleDateString('en-EG', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  return `${s.toLocaleDateString('en-EG', { day: 'numeric', month: 'short' })} - ${e.toLocaleDateString('en-EG', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+}
+
+function getVisibleHolidays(monthKey) {
+  const today = todayStr();
+  return [...holidays]
+    .filter(h => h.endDate >= today)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .slice(0, 3);
+}
+
+function renderHolidayNotice(monthKey) {
+  const activeHolidays = getVisibleHolidays(monthKey);
+  if (activeHolidays.length === 0) return '';
+
+  return `
+    <div class="card" style="margin:0 16px 16px;border-color:rgba(0,200,150,0.22);background:rgba(0,200,150,0.06);">
+      <div style="font-size:14px;font-weight:800;color:var(--green);margin-bottom:10px;">Academy holiday rest</div>
+      ${activeHolidays.map(h => `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+          <div style="font-size:26px;">${h.icon || '🕌'}</div>
+          <div>
+            <div style="font-size:14px;font-weight:800;color:var(--white);">${h.name}</div>
+            <div style="font-size:12px;color:var(--text-muted);">Rest from ${formatHolidayRange(h.startDate, h.endDate)} · No deduction</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
 }
 
 function launchConfetti() {
@@ -192,6 +229,10 @@ export function cleanupCoachPage() {
     coachNotesUnsubscribe();
     coachNotesUnsubscribe = null;
   }
+  if (coachHolidayUnsubscribe) {
+    coachHolidayUnsubscribe();
+    coachHolidayUnsubscribe = null;
+  }
 }
 
 export function renderCoachPage() {
@@ -235,6 +276,7 @@ baseSalaryEl.innerHTML = `
   renderCoachHistory(u.id, monthKey);
   renderRestDaySection(u, monthKey);
   renderNotesSection(u);
+  if (!coachHolidayUnsubscribe) coachHolidayUnsubscribe = listenToHolidays(renderCoachPage);
 }
 
 function getClockColor(now) {
@@ -285,6 +327,19 @@ function renderCheckinArea() {
       return;
     }
     renderReaction(area, todayRecord, getLateStatus(todayRecord.lateMinutes));
+    return;
+  }
+
+  if (isHoliday(todayStr())) {
+    const holiday = getHoliday(todayStr());
+    area.innerHTML = `
+      <div class="checkin-time"><div id="live-clock" class="checkin-clock">--:--:--</div><div id="live-date" class="checkin-date-str"></div></div>
+      <div class="reaction-box on-time">
+        <div style="font-size:32px;margin-bottom:8px;">${holiday?.icon || '🕌'}</div>
+        <div class="reaction-title">HOLIDAY REST</div>
+        <div class="reaction-msg">${holiday?.name || 'Academy holiday'} · ${formatHolidayRange(holiday?.startDate || todayStr(), holiday?.endDate || todayStr())}</div>
+        <div style="margin-top:10px;font-size:13px;color:var(--green);font-weight:800;">No check-in needed and no deduction today</div>
+      </div>`;
     return;
   }
 
@@ -595,9 +650,11 @@ function renderRestDaySection(u, monthKey) {
   const records = getMonthAttendance(u.id, monthKey);
   const restDay = records.find(isCoachRestDay);
   const currentMonth = monthKey === getCurrentMonthKey();
+  const holidayNotice = renderHolidayNotice(monthKey);
 
   if (!currentMonth) {
     container.innerHTML = `
+      ${holidayNotice}
       <div class="card" style="margin:0 16px 16px;">
         <div style="font-size:13px;color:var(--text-muted);">Rest days can only be chosen for the current month.</div>
       </div>`;
@@ -606,6 +663,7 @@ function renderRestDaySection(u, monthKey) {
 
   if (minDate > maxDate) {
     container.innerHTML = `
+      ${holidayNotice}
       <div class="card" style="margin:0 16px 16px;">
         <div style="font-size:14px;font-weight:800;color:var(--orange);margin-bottom:4px;">No rest days available</div>
         <div style="font-size:13px;color:var(--text-muted);">Rest days must be chosen at least one day before the date.</div>
@@ -616,6 +674,7 @@ function renderRestDaySection(u, monthKey) {
   if (restDay) {
     const canCancel = restDay.date >= today;
     container.innerHTML = `
+      ${holidayNotice}
       <div class="card" style="margin:0 16px 16px;border-color:rgba(255,225,53,0.22);background:rgba(255,225,53,0.05);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <div>
@@ -640,6 +699,7 @@ function renderRestDaySection(u, monthKey) {
   }).join('');
 
   container.innerHTML = `
+    ${holidayNotice}
     <div class="card" style="margin:0 16px 16px;">
       <div style="font-size:14px;font-weight:800;color:var(--green);margin-bottom:8px;">Choose your monthly rest day</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Choose one future working day. It must be saved at least one day before, and only one coach can rest on the same day.</div>
@@ -659,6 +719,7 @@ window.submitRestDay = async function(selectedDate = null) {
   if (date.slice(0, 7) !== monthKey) { status.textContent = 'Choose a day in the current month.'; status.style.color = 'var(--orange)'; return; }
   if (date <= todayStr()) { status.textContent = 'Choose a future day at least one day before the rest day.'; status.style.color = 'var(--orange)'; return; }
   if (!isWorkDay(new Date(date + 'T00:00:00'))) { status.textContent = 'Rest day must be Saturday, Monday, or Wednesday.'; status.style.color = 'var(--orange)'; return; }
+  if (isHoliday(date)) { status.textContent = 'This is already an academy holiday rest day. Choose another day.'; status.style.color = 'var(--orange)'; return; }
   if (records.some(isCoachRestDay)) { status.textContent = 'You already chose your rest day this month.'; status.style.color = 'var(--orange)'; return; }
   if (isRestDayTaken(date, currentUser.id)) {
     status.textContent = 'This day is already chosen, so you can\'t rest on the same day. Choose another day.';
