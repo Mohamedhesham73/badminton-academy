@@ -24,6 +24,7 @@ const CONFIG = {
   checkinOpen: { h: 16, m: 0 },
   sessionEnd: { h: 21, m: 0 },
   sessionsPerMonth: 12,
+  lateGraceMinutes: 5,
   leaderboardBonus: 500,
   currency: 'EGP',
 };
@@ -321,7 +322,8 @@ function calcLateMinutes(timeStr, userId) {
   const user = getUser(userId);
   const startTime = getCoachStartTime(user);
   const startMins = startTime.h * 60 + startTime.m;
-  return Math.max(0, totalMins - startMins);
+  const lateMinutes = Math.max(0, totalMins - startMins);
+  return lateMinutes > CONFIG.lateGraceMinutes ? lateMinutes : 0;
 }
 
 function calcDeductionForUser(minutes, userId) {

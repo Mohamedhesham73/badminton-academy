@@ -378,10 +378,13 @@ function renderCheckinArea() {
   const startTime = getCoachStartTime(u);
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const startMins = startTime.h * 60 + startTime.m;
-  const lateBy = Math.max(0, nowMins - startMins);
+  const rawLateBy = Math.max(0, nowMins - startMins);
+  const lateBy = rawLateBy > CONFIG.lateGraceMinutes ? rawLateBy : 0;
   const countdown = getCountdownText(now, startTime);
   const shakeClass = (startMins - nowMins <= 5 && startMins - nowMins > 0) ? 'shake-btn' : '';
-  const startLabel = to12h(startTime.h, startTime.m);
+  const graceEnd = new Date(now);
+  graceEnd.setHours(startTime.h, startTime.m + CONFIG.lateGraceMinutes, 0, 0);
+  const graceLabel = to12h(graceEnd.getHours(), graceEnd.getMinutes());
 
   area.innerHTML = `
     <div class="checkin-time"><div id="live-clock" class="checkin-clock">--:--:--</div><div id="live-date" class="checkin-date-str"></div></div>
@@ -391,7 +394,7 @@ function renderCheckinArea() {
         <span class="${lateBy >= 30 ? 'badge badge-red' : 'badge badge-orange'}">⚠ ${lateBy} min late — ${calcDeductionForUser(lateBy, u.id).toFixed(1)} EGP deduction</span>
       </div>` : `
       <div style="text-align:center;margin-bottom:12px;">
-        <span class="badge badge-green">🟢 On time — session starts ${startLabel}</span>
+        <span class="badge badge-green">🟢 On time — grace until ${graceLabel}</span>
       </div>`}
     <button class="btn btn-green ${shakeClass}" onclick="attemptCheckin()">🏸 Check In Now</button>
     <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:10px;">Location verification required</p>
