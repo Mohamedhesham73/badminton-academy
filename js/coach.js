@@ -73,7 +73,7 @@ function renderHolidayNotice(monthKey) {
   if (activeHolidays.length === 0) return '';
 
   return `
-    <div class="card" style="margin:0 16px 16px;border-color:rgba(0,200,150,0.22);background:rgba(0,200,150,0.06);">
+    <div class="card" style="margin:0 0 16px;border-color:rgba(0,200,150,0.22);background:rgba(0,200,150,0.06);">
       <div style="font-size:14px;font-weight:800;color:var(--green);margin-bottom:10px;">Academy holiday rest</div>
       ${activeHolidays.map(h => `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
@@ -85,6 +85,12 @@ function renderHolidayNotice(monthKey) {
         </div>
       `).join('')}
     </div>`;
+}
+
+function renderCoachHolidayBanner(monthKey) {
+  const container = document.getElementById('coach-holidays');
+  if (!container) return;
+  container.innerHTML = renderHolidayNotice(monthKey);
 }
 
 function launchConfetti() {
@@ -241,12 +247,12 @@ export function renderCoachPage() {
   const summary = calcMonthlySummary(u.id, monthKey);
 
   const avatarEl = document.getElementById('coach-avatar');
+  avatarEl.style.cursor = 'pointer';
+  avatarEl.onclick = showRestrictions;
   if (u.photo) {
-    avatarEl.innerHTML = `<img src="${u.photo}" alt="${u.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;cursor:pointer;" onclick="showRestrictions()" onerror="this.parentElement.textContent='${initials(u.name)}'" />`;
+    avatarEl.innerHTML = `<img src="${u.photo}" alt="${u.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;pointer-events:none;" onerror="this.parentElement.textContent='${initials(u.name)}'" />`;
   } else {
     avatarEl.textContent = initials(u.name);
-    avatarEl.style.cursor = 'pointer';
-    avatarEl.onclick = showRestrictions;
   }
 
   document.getElementById('coach-name-header').textContent = u.name;
@@ -266,6 +272,7 @@ baseSalaryEl.innerHTML = `
 
   const quoteEl = document.getElementById('daily-quote');
   if (quoteEl) quoteEl.textContent = getDailyQuote();
+  renderCoachHolidayBanner(monthKey);
 
   const streakEl = document.getElementById('coach-streak');
   if (streakEl) streakEl.textContent = getStreak(u.id);
@@ -650,11 +657,8 @@ function renderRestDaySection(u, monthKey) {
   const records = getMonthAttendance(u.id, monthKey);
   const restDay = records.find(isCoachRestDay);
   const currentMonth = monthKey === getCurrentMonthKey();
-  const holidayNotice = renderHolidayNotice(monthKey);
-
   if (!currentMonth) {
     container.innerHTML = `
-      ${holidayNotice}
       <div class="card" style="margin:0 16px 16px;">
         <div style="font-size:13px;color:var(--text-muted);">Rest days can only be chosen for the current month.</div>
       </div>`;
@@ -663,7 +667,6 @@ function renderRestDaySection(u, monthKey) {
 
   if (minDate > maxDate) {
     container.innerHTML = `
-      ${holidayNotice}
       <div class="card" style="margin:0 16px 16px;">
         <div style="font-size:14px;font-weight:800;color:var(--orange);margin-bottom:4px;">No rest days available</div>
         <div style="font-size:13px;color:var(--text-muted);">Rest days must be chosen at least one day before the date.</div>
@@ -674,7 +677,6 @@ function renderRestDaySection(u, monthKey) {
   if (restDay) {
     const canCancel = restDay.date >= today;
     container.innerHTML = `
-      ${holidayNotice}
       <div class="card" style="margin:0 16px 16px;border-color:rgba(255,225,53,0.22);background:rgba(255,225,53,0.05);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <div>
@@ -699,7 +701,6 @@ function renderRestDaySection(u, monthKey) {
   }).join('');
 
   container.innerHTML = `
-    ${holidayNotice}
     <div class="card" style="margin:0 16px 16px;">
       <div style="font-size:14px;font-weight:800;color:var(--green);margin-bottom:8px;">Choose your monthly rest day</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Choose one future working day. It must be saved at least one day before, and only one coach can rest on the same day.</div>
