@@ -1,5 +1,5 @@
 // ─── ADMIN PAGE ───
-import { CONFIG, USERS, attendance, holidays, SUGGESTED_HOLIDAYS, removeAttendance, markAsExcused, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getLeaderboardStats, calcMonthlySummaryWithBonus, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
+import { CONFIG, USERS, attendance, holidays, SUGGESTED_HOLIDAYS, removeAttendance, markAsExcused, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcMonthlyLateDeductions, getLeaderboardStats, calcMonthlySummaryWithBonus, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
 import { listenToNotes, markNoteRead, deleteNote, formatNoteTime } from './notes.js';
 
 let adminActiveTab = 'overview';
@@ -89,7 +89,8 @@ function calcMonthlySummaryWithAbsences(userId, monthKey) {
   const pastWorkingDays = getPastWorkingDaysInMonth(monthKey);
   const daysPresent = realRecords.length;
   const baseSalary = user.sessionRate * CONFIG.sessionsPerMonth;
-  const lateDeductions = realRecords.reduce((s, r) => s + (r.lateDeduction || r.deduction || 0), 0);
+  const lateSummary = calcMonthlyLateDeductions(realRecords);
+  const lateDeductions = lateSummary.lateDeductions;
   const earlyLeaveDeductions = realRecords.reduce((s, r) => s + (r.earlyLeaveDeduction || 0), 0);
 
   const presentDates = realRecords.map(r => r.date);
@@ -98,7 +99,7 @@ function calcMonthlySummaryWithAbsences(userId, monthKey) {
 
   const totalDeductions = lateDeductions + earlyLeaveDeductions + absenceDeductions;
   const netSalary = baseSalary - totalDeductions;
-  return { daysPresent, baseSalary, totalDeductions, lateDeductions, earlyLeaveDeductions, absenceDeductions, absentDays, netSalary, records: realRecords, excusedRecords };
+  return { daysPresent, baseSalary, totalDeductions, lateDeductions, rawLateDeductions: lateSummary.rawLateDeductions, lateDeductionsForgiven: lateSummary.lateDeductionsForgiven, totalLateMinutes: lateSummary.totalLateMinutes, earlyLeaveDeductions, absenceDeductions, absentDays, netSalary, records: realRecords, excusedRecords };
 }
 
 export function cleanupAdminPage() {
@@ -214,6 +215,10 @@ function renderOverviewTab(container) {
             ${s.lateDeductions > 0 ? `<span class="deduction-pill">⏰ Late: -${s.lateDeductions.toFixed(1)} EGP</span>` : ''}
             ${s.earlyLeaveDeductions > 0 ? `<span class="deduction-pill">🚪 Early leave: -${s.earlyLeaveDeductions.toFixed(1)} EGP</span>` : ''}
             ${s.absenceDeductions > 0 ? `<span class="deduction-pill">❌ Absent (${s.absentDays}d): -${s.absenceDeductions.toFixed(1)} EGP</span>` : ''}
+          </div>` : ''}
+        ${s.lateDeductionsForgiven ? `
+          <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="background:rgba(0,200,150,0.12);color:var(--green);border:1px solid rgba(0,200,150,0.25);padding:3px 8px;border-radius:8px;font-size:11px;font-weight:800;">Late forgiven: ${s.totalLateMinutes}m / ${CONFIG.monthlyLateForgivenessMinutes}m</span>
           </div>` : ''}
         ${leaderboardBonus > 0 ? `
           <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
@@ -704,6 +709,11 @@ function generateSalarySlip(userId) {
     pdf.setTextColor(...redRGB);
     pdf.text('Late Arrival Deductions', 15, y);
     pdf.text(`- ${s.lateDeductions.toFixed(2)} EGP`, 195, y, { align: 'right' });
+    y += 7;
+  } else if (s.lateDeductionsForgiven) {
+    pdf.setTextColor(...greenRGB);
+    pdf.text(`Late Arrival Forgiven (${s.totalLateMinutes} min)`, 15, y);
+    pdf.text('0.00 EGP', 195, y, { align: 'right' });
     y += 7;
   }
   if (s.earlyLeaveDeductions > 0) {

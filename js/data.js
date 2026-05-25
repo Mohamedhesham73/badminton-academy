@@ -25,6 +25,7 @@ const CONFIG = {
   sessionEnd: { h: 21, m: 0 },
   sessionsPerMonth: 12,
   lateGraceMinutes: 5,
+  monthlyLateForgivenessMinutes: 15,
   leaderboardBonus: 500,
   currency: 'EGP',
 };
@@ -375,6 +376,18 @@ function getPastWorkingDaysInMonth(monthKey) {
   return days;
 }
 
+function calcMonthlyLateDeductions(records) {
+  const totalLateMinutes = records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
+  const rawLateDeductions = records.reduce((sum, r) => sum + (r.lateDeduction || r.deduction || 0), 0);
+  const lateDeductionsForgiven = totalLateMinutes > 0 && totalLateMinutes <= CONFIG.monthlyLateForgivenessMinutes;
+  return {
+    totalLateMinutes,
+    rawLateDeductions,
+    lateDeductions: lateDeductionsForgiven ? 0 : rawLateDeductions,
+    lateDeductionsForgiven
+  };
+}
+
 function calcMonthlySummary(userId, monthKey) {
   const user = getUser(userId);
   const allRecords = getMonthAttendance(userId, monthKey);
@@ -385,20 +398,21 @@ function calcMonthlySummary(userId, monthKey) {
   const absentDates = getPastWorkingDaysInMonth(monthKey).filter(d => !presentDates.includes(d) && !excusedDates.includes(d));
   const daysPresent = records.length;
   const baseSalary = user.sessionRate * CONFIG.sessionsPerMonth;
-  const lateDeductions = records.reduce((s, r) => s + (r.lateDeduction || r.deduction || 0), 0);
+  const lateSummary = calcMonthlyLateDeductions(records);
+  const lateDeductions = lateSummary.lateDeductions;
   const earlyLeaveDeductions = records.reduce((s, r) => s + (r.earlyLeaveDeduction || 0), 0);
   const absentDays = absentDates.length;
   const absenceDeductions = absentDays * user.sessionRate;
   const totalDeductions = lateDeductions + earlyLeaveDeductions + absenceDeductions;
   const netSalary = baseSalary - totalDeductions;
-  return { daysPresent, baseSalary, totalDeductions, lateDeductions, earlyLeaveDeductions, absenceDeductions, absentDays, absentDates, netSalary, records, excusedRecords };
+  return { daysPresent, baseSalary, totalDeductions, lateDeductions, rawLateDeductions: lateSummary.rawLateDeductions, lateDeductionsForgiven: lateSummary.lateDeductionsForgiven, totalLateMinutes: lateSummary.totalLateMinutes, earlyLeaveDeductions, absenceDeductions, absentDays, absentDates, netSalary, records, excusedRecords };
 }
 
 function getLeaderboardStats(monthKey) {
   const coaches = USERS.filter(u => !u.isAdmin);
   const stats = coaches.map(u => {
     const s = calcMonthlySummary(u.id, monthKey);
-    const totalLateMinutes = s.records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
+    const totalLateMinutes = s.totalLateMinutes;
     const ontimeSessions = s.records.filter(r => r.lateMinutes === 0).length;
     const excusedDays = (s.excusedRecords || []).length;
     return { u, s, totalLateMinutes, ontimeSessions, excusedDays };
@@ -526,7 +540,7 @@ export {
   getUser, getUserByEmail, todayStr, isWorkDay, getCoachStartTime,
   isExcusedRecord, isCoachRestDay, getCoachRestDays, isRestDayTaken, getAvailableRestDays,
   calcLateMinutes, calcDeduction, calcDeductionForUser, getLateStatus,
-  getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getLeaderboardStats, calcMonthlySummaryWithBonus,
+  getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcMonthlyLateDeductions, getLeaderboardStats, calcMonthlySummaryWithBonus,
   hasCheckedInToday, formatDate, formatMonthLabel, initials, haversineMeters,
   login, logout, restoreSession
 };

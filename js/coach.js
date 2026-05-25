@@ -264,6 +264,7 @@ baseSalaryEl.innerHTML = `
   <div style="font-size:11px;font-weight:600;color:${summary.totalDeductions > 0 ? 'var(--orange)' : 'var(--green)'};margin-top:4px;letter-spacing:0.5px;">
     Net: ${Math.round(summary.netSalaryWithBonus).toLocaleString('en-EG')} EGP
     ${summary.leaderboardBonus > 0 ? `<div style="font-size:10px;color:var(--yellow);margin-top:2px;">+${summary.leaderboardBonus.toLocaleString('en-EG')} leaderboard bonus</div>` : ''}
+    ${summary.lateDeductionsForgiven ? `<div style="font-size:10px;color:var(--green);margin-top:2px;">${summary.totalLateMinutes}m late forgiven this month</div>` : ''}
     ${summary.totalDeductions > 0 ? `<div style="font-size:10px;color:var(--red);margin-top:2px;">-${Math.round(summary.totalDeductions).toLocaleString('en-EG')} deducted</div>` : ''}
   </div>
 `;
@@ -630,7 +631,7 @@ function renderCoachHistory(userId, monthKey) {
       late:      `<span class="badge badge-orange">+${r.lateMinutes}m late</span>`,
       superlate: `<span class="badge badge-red">+${r.lateMinutes}m late 💀</span>`
     };
-    const lateDed = r.lateDeduction || r.deduction || 0;
+    const lateDed = summary.lateDeductionsForgiven ? 0 : (r.lateDeduction || r.deduction || 0);
     const earlyDed = r.earlyLeaveDeduction || 0;
     const totalDed = lateDed + earlyDed;
     return `
@@ -641,6 +642,7 @@ function renderCoachHistory(userId, monthKey) {
         </div>
         <div class="att-right">
           ${badges[status]}
+          ${summary.lateDeductionsForgiven && r.lateMinutes > 0 ? `<div style="margin-top:4px;"><span class="badge badge-green">Late forgiven</span></div>` : ''}
           ${r.earlyLeaveMinutes > 0 ? `<div style="margin-top:4px;"><span class="badge badge-red">-${r.earlyLeaveMinutes}m early</span></div>` : ''}
           ${totalDed > 0 ? `<div style="margin-top:4px;"><span class="deduction-pill">-${totalDed.toFixed(1)} EGP</span></div>` : ''}
         </div>
