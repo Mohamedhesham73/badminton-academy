@@ -24,6 +24,7 @@ const CONFIG = {
   checkinOpen: { h: 16, m: 0 },
   sessionEnd: { h: 21, m: 0 },
   sessionsPerMonth: 12,
+  leaderboardBonus: 500,
   currency: 'EGP',
 };
 
@@ -391,6 +392,41 @@ function calcMonthlySummary(userId, monthKey) {
   return { daysPresent, baseSalary, totalDeductions, lateDeductions, earlyLeaveDeductions, absenceDeductions, absentDays, absentDates, netSalary, records, excusedRecords };
 }
 
+function getLeaderboardStats(monthKey) {
+  const coaches = USERS.filter(u => !u.isAdmin);
+  const stats = coaches.map(u => {
+    const s = calcMonthlySummary(u.id, monthKey);
+    const totalLateMinutes = s.records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
+    const ontimeSessions = s.records.filter(r => r.lateMinutes === 0).length;
+    const excusedDays = (s.excusedRecords || []).length;
+    return { u, s, totalLateMinutes, ontimeSessions, excusedDays };
+  });
+
+  return [...stats]
+    .sort((a, b) =>
+      a.s.totalDeductions - b.s.totalDeductions ||
+      b.ontimeSessions - a.ontimeSessions ||
+      a.totalLateMinutes - b.totalLateMinutes
+    )
+    .map((item, i) => {
+      const leaderboardBonus = i === 0 ? CONFIG.leaderboardBonus : 0;
+      return {
+        ...item,
+        leaderboardBonus,
+        netSalaryWithBonus: item.s.netSalary + leaderboardBonus
+      };
+    });
+}
+
+function calcMonthlySummaryWithBonus(userId, monthKey) {
+  const item = getLeaderboardStats(monthKey).find(stat => stat.u.id === userId);
+  if (!item) {
+    const s = calcMonthlySummary(userId, monthKey);
+    return { ...s, leaderboardBonus: 0, netSalaryWithBonus: s.netSalary };
+  }
+  return { ...item.s, leaderboardBonus: item.leaderboardBonus, netSalaryWithBonus: item.netSalaryWithBonus };
+}
+
 function hasCheckedInToday(userId) {
   return attendance.find(a => a.userId === userId && a.date === todayStr());
 }
@@ -488,7 +524,7 @@ export {
   getUser, getUserByEmail, todayStr, isWorkDay, getCoachStartTime,
   isExcusedRecord, isCoachRestDay, getCoachRestDays, isRestDayTaken, getAvailableRestDays,
   calcLateMinutes, calcDeduction, calcDeductionForUser, getLateStatus,
-  getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary,
+  getMonthKey, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getLeaderboardStats, calcMonthlySummaryWithBonus,
   hasCheckedInToday, formatDate, formatMonthLabel, initials, haversineMeters,
   login, logout, restoreSession
 };

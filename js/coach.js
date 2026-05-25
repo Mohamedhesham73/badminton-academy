@@ -1,5 +1,5 @@
 // ─── COACH PAGE ───
-import { CONFIG, USERS, attendance, currentUser, holidays, listenToHolidays, isHoliday, getHoliday, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials, requestCoachRestDay, removeAttendance, getAvailableRestDays, isRestDayTaken } from './data.js';
+import { CONFIG, USERS, attendance, currentUser, holidays, listenToHolidays, isHoliday, getHoliday, addAttendance, checkOutCoach, hasCheckedInToday, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, calcMonthlySummaryWithBonus, calcDeductionForUser, getLateStatus, getCoachStartTime, todayStr, isWorkDay, haversineMeters, formatDate, initials, requestCoachRestDay, removeAttendance, getAvailableRestDays, isRestDayTaken } from './data.js';
 import { sendNote, listenToMyNotes, formatNoteTime } from './notes.js';
 
 let coachClockTimer = null;
@@ -244,7 +244,7 @@ export function cleanupCoachPage() {
 export function renderCoachPage() {
   const u = currentUser;
   const monthKey = getCurrentMonthKey();
-  const summary = calcMonthlySummary(u.id, monthKey);
+  const summary = calcMonthlySummaryWithBonus(u.id, monthKey);
 
   const avatarEl = document.getElementById('coach-avatar');
   avatarEl.style.cursor = 'pointer';
@@ -262,7 +262,8 @@ export function renderCoachPage() {
 baseSalaryEl.innerHTML = `
   ${Math.round(summary.baseSalary).toLocaleString('en-EG')} EGP
   <div style="font-size:11px;font-weight:600;color:${summary.totalDeductions > 0 ? 'var(--orange)' : 'var(--green)'};margin-top:4px;letter-spacing:0.5px;">
-    Net: ${Math.round(summary.netSalary).toLocaleString('en-EG')} EGP
+    Net: ${Math.round(summary.netSalaryWithBonus).toLocaleString('en-EG')} EGP
+    ${summary.leaderboardBonus > 0 ? `<div style="font-size:10px;color:var(--yellow);margin-top:2px;">+${summary.leaderboardBonus.toLocaleString('en-EG')} leaderboard bonus</div>` : ''}
     ${summary.totalDeductions > 0 ? `<div style="font-size:10px;color:var(--red);margin-top:2px;">-${Math.round(summary.totalDeductions).toLocaleString('en-EG')} deducted</div>` : ''}
   </div>
 `;

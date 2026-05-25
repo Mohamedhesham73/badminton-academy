@@ -1,5 +1,5 @@
 // ─── ADMIN PAGE ───
-import { CONFIG, USERS, attendance, holidays, SUGGESTED_HOLIDAYS, removeAttendance, markAsExcused, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
+import { CONFIG, USERS, attendance, holidays, SUGGESTED_HOLIDAYS, removeAttendance, markAsExcused, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange, getMonthAttendance, getCurrentMonthKey, calcMonthlySummary, getLeaderboardStats, calcMonthlySummaryWithBonus, getMonthKey, getLateStatus, formatMonthLabel, formatDate, initials, getUser } from './data.js';
 import { listenToNotes, markNoteRead, deleteNote, formatNoteTime } from './notes.js';
 
 let adminActiveTab = 'overview';
@@ -140,13 +140,12 @@ function renderNotesBadge(notes) {
 }
 
 function renderAdminSummary() {
-  const coaches = USERS.filter(u => !u.isAdmin);
+  const stats = getLeaderboardStats(adminMonthKey);
   let totalPresent = 0, totalSalaryOut = 0, totalDeductions = 0;
-  coaches.forEach(u => {
-    const s = calcMonthlySummaryWithAbsences(u.id, adminMonthKey);
-    totalPresent += s.daysPresent;
-    totalSalaryOut += s.netSalary;
-    totalDeductions += s.totalDeductions;
+  stats.forEach(item => {
+    totalPresent += item.s.daysPresent;
+    totalSalaryOut += item.netSalaryWithBonus;
+    totalDeductions += item.s.totalDeductions;
   });
   document.getElementById('admin-total-sessions').textContent = totalPresent;
   document.getElementById('admin-total-salary').textContent = Math.round(totalSalaryOut).toLocaleString('en-EG');
@@ -171,6 +170,7 @@ function renderAdminTab(tab) {
 
 function renderOverviewTab(container) {
   const coaches = USERS.filter(u => !u.isAdmin);
+  const leaderboardById = new Map(getLeaderboardStats(adminMonthKey).map(item => [item.u.id, item]));
   const restDays = attendance
     .filter(r => getMonthKey(r.date) === adminMonthKey && isCoachRestDay(r))
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -186,7 +186,10 @@ function renderOverviewTab(container) {
         </div>` : `<div style="font-size:13px;color:var(--text-muted);">No coach rest days selected yet.</div>`}
     </div>`;
   container.innerHTML = restDaysSummary + coaches.map(u => {
-    const s = calcMonthlySummaryWithAbsences(u.id, adminMonthKey);
+    const leaderboardItem = leaderboardById.get(u.id);
+    const s = leaderboardItem?.s || calcMonthlySummaryWithAbsences(u.id, adminMonthKey);
+    const leaderboardBonus = leaderboardItem?.leaderboardBonus || 0;
+    const netSalary = leaderboardItem?.netSalaryWithBonus ?? s.netSalary;
     const pct = Math.min(100, (s.daysPresent / CONFIG.sessionsPerMonth) * 100);
     return `
       <div class="coach-row fade-in">
@@ -199,7 +202,7 @@ function renderOverviewTab(container) {
             </div>
           </div>
           <div>
-            <div class="coach-total">${Math.round(s.netSalary).toLocaleString('en-EG')} EGP</div>
+            <div class="coach-total">${Math.round(netSalary).toLocaleString('en-EG')} EGP</div>
             <div class="coach-total-label">${s.daysPresent}/${CONFIG.sessionsPerMonth} sessions</div>
           </div>
         </div>
@@ -211,6 +214,10 @@ function renderOverviewTab(container) {
             ${s.lateDeductions > 0 ? `<span class="deduction-pill">⏰ Late: -${s.lateDeductions.toFixed(1)} EGP</span>` : ''}
             ${s.earlyLeaveDeductions > 0 ? `<span class="deduction-pill">🚪 Early leave: -${s.earlyLeaveDeductions.toFixed(1)} EGP</span>` : ''}
             ${s.absenceDeductions > 0 ? `<span class="deduction-pill">❌ Absent (${s.absentDays}d): -${s.absenceDeductions.toFixed(1)} EGP</span>` : ''}
+          </div>` : ''}
+        ${leaderboardBonus > 0 ? `
+          <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);padding:3px 8px;border-radius:8px;font-size:11px;font-weight:800;">Leaderboard bonus: +${leaderboardBonus.toLocaleString('en-EG')} EGP</span>
           </div>` : ''}
         ${s.excusedRecords && s.excusedRecords.length > 0 ? `
           <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
@@ -371,19 +378,8 @@ function renderLogTab(container) {
 }
 
 function renderLeaderboardTab(container) {
-  const coaches = USERS.filter(u => !u.isAdmin);
-  const stats = coaches.map(u => {
-    const s = calcMonthlySummaryWithAbsences(u.id, adminMonthKey);
-    const totalLateMinutes = s.records.reduce((sum, r) => sum + (r.lateMinutes || 0), 0);
-    const ontimeSessions = s.records.filter(r => r.lateMinutes === 0).length;
-    return { u, s, totalLateMinutes, ontimeSessions };
-  });
-  const ranked = [...stats].sort((a, b) =>
-    a.s.totalDeductions - b.s.totalDeductions ||
-    b.ontimeSessions - a.ontimeSessions ||
-    a.totalLateMinutes - b.totalLateMinutes
-  );
-  const mostLate = [...stats].sort((a, b) => b.totalLateMinutes - a.totalLateMinutes)[0];
+  const ranked = getLeaderboardStats(adminMonthKey);
+  const mostLate = [...ranked].sort((a, b) => b.totalLateMinutes - a.totalLateMinutes)[0];
   const medals = ['🥇', '🥈', '🥉'];
   container.innerHTML = `
     <div style="padding:0 16px 16px;">
@@ -391,6 +387,7 @@ function renderLeaderboardTab(container) {
         ${ranked.map((item, i) => {
           const isTop = i === 0 && item.s.totalDeductions === 0;
           const isMostLate = mostLate && item.u.id === mostLate.u.id && mostLate.totalLateMinutes > 0;
+          const bonus = item.leaderboardBonus || 0;
           return `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:8px;background:${isTop ? 'rgba(0,200,150,0.08)' : 'rgba(255,255,255,0.03)'};border:1px solid ${isTop ? 'rgba(0,200,150,0.2)' : 'rgba(255,255,255,0.07)'};border-radius:var(--radius-sm);">
               <div style="display:flex;align-items:center;gap:12px;">
@@ -398,11 +395,12 @@ function renderLeaderboardTab(container) {
                 ${avatarHtml(item.u, 36)}
                 <div>
                   <div style="font-size:14px;font-weight:800;">${item.u.name} ${isMostLate ? '<span style="font-size:11px;background:rgba(255,77,109,0.15);color:var(--red);padding:2px 6px;border-radius:6px;">😴 Most Late</span>' : ''}</div>
-                  <div style="font-size:12px;color:var(--text-muted);">${item.ontimeSessions} on-time · ${item.totalLateMinutes}m late · ${item.s.absentDays} absent</div>
+                  <div style="font-size:12px;color:var(--text-muted);">${item.ontimeSessions} on-time · ${item.totalLateMinutes}m late · ${item.s.absentDays} absent · ${item.excusedDays} excused</div>
                 </div>
               </div>
               <div style="text-align:right;">
                 <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--green);">${item.s.daysPresent} sessions</div>
+                ${bonus > 0 ? `<div style="font-size:12px;color:var(--yellow);font-weight:800;">+${bonus.toLocaleString('en-EG')} EGP bonus</div>` : ''}
                 ${item.s.totalDeductions > 0 ? `<div style="font-size:11px;color:var(--red);">-${item.s.totalDeductions.toFixed(1)} EGP</div>` : '<div style="font-size:11px;color:var(--green);">No deductions 🎉</div>'}
               </div>
             </div>`;
@@ -590,7 +588,7 @@ window.adminMarkExcused = async function(userId, date) {
 // ─── PDF SALARY SLIP ───
 function generateSalarySlip(userId) {
   const u = getUser(userId);
-  const s = calcMonthlySummaryWithAbsences(u.id, adminMonthKey);
+  const s = calcMonthlySummaryWithBonus(u.id, adminMonthKey);
   const monthLabel = formatMonthLabel(adminMonthKey);
 
   const { jsPDF } = window.jspdf;
@@ -696,6 +694,12 @@ function generateSalarySlip(userId) {
   pdf.text(`+ ${s.baseSalary.toFixed(2)} EGP`, 195, y, { align: 'right' });
 
   y += 7;
+  if (s.leaderboardBonus > 0) {
+    pdf.setTextColor(...yellowRGB);
+    pdf.text('Leaderboard Bonus', 15, y);
+    pdf.text(`+ ${s.leaderboardBonus.toFixed(2)} EGP`, 195, y, { align: 'right' });
+    y += 7;
+  }
   if (s.lateDeductions > 0) {
     pdf.setTextColor(...redRGB);
     pdf.text('Late Arrival Deductions', 15, y);
@@ -733,7 +737,7 @@ function generateSalarySlip(userId) {
   pdf.setFontSize(12);
   pdf.text('NET SALARY', 20, y + 1);
   pdf.setFontSize(18);
-  pdf.text(`${Math.round(s.netSalary).toLocaleString('en-EG')} EGP`, 190, y + 2, { align: 'right' });
+  pdf.text(`${Math.round(s.netSalaryWithBonus).toLocaleString('en-EG')} EGP`, 190, y + 2, { align: 'right' });
 
   y = 200;
   pdf.setTextColor(...greenRGB);
