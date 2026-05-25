@@ -346,16 +346,48 @@ function getMonthAttendance(userId, monthKey) {
 
 function getCurrentMonthKey() { return todayStr().slice(0, 7); }
 
+function getPastWorkingDaysInMonth(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const isPastSessionEnd = now.getHours() >= CONFIG.sessionEnd.h;
+  const days = [];
+  const lastDay = new Date(y, m, 0).getDate();
+
+  for (let day = 1; day <= lastDay; day++) {
+    const d = new Date(y, m - 1, day);
+    d.setHours(0, 0, 0, 0);
+    if (!CONFIG.workDays.includes(d.getDay())) continue;
+    if (d > today || (d.getTime() === today.getTime() && !isPastSessionEnd)) continue;
+
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    if (!isHoliday(dateStr)) days.push(dateStr);
+  }
+
+  return days;
+}
+
 function calcMonthlySummary(userId, monthKey) {
   const user = getUser(userId);
   const allRecords = getMonthAttendance(userId, monthKey);
   const records = allRecords.filter(r => !isExcusedRecord(r));
   const excusedRecords = allRecords.filter(r => isExcusedRecord(r));
+  const presentDates = records.map(r => r.date);
+  const excusedDates = excusedRecords.map(r => r.date);
+  const absentDates = getPastWorkingDaysInMonth(monthKey).filter(d => !presentDates.includes(d) && !excusedDates.includes(d));
   const daysPresent = records.length;
   const baseSalary = user.sessionRate * CONFIG.sessionsPerMonth;
-  const totalDeductions = records.reduce((s, r) => s + (r.lateDeduction || 0) + (r.earlyLeaveDeduction || 0) + (r.deduction || 0), 0);
+  const lateDeductions = records.reduce((s, r) => s + (r.lateDeduction || r.deduction || 0), 0);
+  const earlyLeaveDeductions = records.reduce((s, r) => s + (r.earlyLeaveDeduction || 0), 0);
+  const absentDays = absentDates.length;
+  const absenceDeductions = absentDays * user.sessionRate;
+  const totalDeductions = lateDeductions + earlyLeaveDeductions + absenceDeductions;
   const netSalary = baseSalary - totalDeductions;
-  return { daysPresent, baseSalary, totalDeductions, netSalary, records, excusedRecords };
+  return { daysPresent, baseSalary, totalDeductions, lateDeductions, earlyLeaveDeductions, absenceDeductions, absentDays, absentDates, netSalary, records, excusedRecords };
 }
 
 function hasCheckedInToday(userId) {

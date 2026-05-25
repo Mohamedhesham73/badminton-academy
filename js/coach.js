@@ -511,12 +511,29 @@ function doCheckin() { return window.doCheckin(); }
 
 function renderCoachHistory(userId, monthKey) {
   const container = document.getElementById('coach-history');
+  const summary = calcMonthlySummary(userId, monthKey);
+  const user = USERS.find(u => u.id === userId);
   const records = getMonthAttendance(userId, monthKey).sort((a,b) => b.date.localeCompare(a.date));
-  if (records.length === 0) {
+  const absentRows = (summary.absentDates || []).map(date => ({ date, absent: true }));
+  const rows = [...records, ...absentRows].sort((a,b) => b.date.localeCompare(a.date));
+  if (rows.length === 0) {
     container.innerHTML = `<div class="empty-state"><span class="icon">📋</span>No attendance this month yet</div>`;
     return;
   }
-  container.innerHTML = records.map(r => {
+  container.innerHTML = rows.map(r => {
+    if (r.absent) {
+      return `
+      <div class="attendance-row fade-in">
+        <div>
+          <div class="att-date">${formatDate(r.date)}</div>
+          <div class="att-time">Absent session</div>
+        </div>
+        <div class="att-right">
+          <span class="badge badge-red">Absent</span>
+          <div style="margin-top:4px;"><span class="deduction-pill">-${(user?.sessionRate || 0).toFixed(1)} EGP</span></div>
+        </div>
+      </div>`;
+    }
     if (isCoachRestDay(r)) {
       return `
       <div class="attendance-row fade-in">
