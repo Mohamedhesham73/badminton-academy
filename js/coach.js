@@ -283,7 +283,9 @@ baseSalaryEl.innerHTML = `
   updateClock();
   if (!coachClockTimer) coachClockTimer = setInterval(updateClock, 1000);
   renderCoachHistory(u.id, monthKey);
-  renderRestDaySection(u, monthKey);
+  const restDaySection = document.getElementById('coach-rest-day-section');
+  if (restDaySection) restDaySection.style.display = CONFIG.coachRestDaysEnabled ? '' : 'none';
+  if (CONFIG.coachRestDaysEnabled) renderRestDaySection(u, monthKey);
   renderNotesSection(u);
   if (!coachHolidayUnsubscribe) coachHolidayUnsubscribe = listenToHolidays(renderCoachPage);
 }
@@ -722,6 +724,7 @@ window.submitRestDay = async function(selectedDate = null) {
   const records = getMonthAttendance(currentUser.id, monthKey);
 
   if (!status) return;
+  if (!CONFIG.coachRestDaysEnabled) { status.textContent = 'Coach rest days are disabled for now.'; status.style.color = 'var(--orange)'; return; }
   if (!date) { status.textContent = 'Please choose a date first.'; status.style.color = 'var(--orange)'; return; }
   if (date.slice(0, 7) !== monthKey) { status.textContent = 'Choose a day in the current month.'; status.style.color = 'var(--orange)'; return; }
   if (date <= todayStr()) { status.textContent = 'Choose a future day at least one day before the rest day.'; status.style.color = 'var(--orange)'; return; }
@@ -745,6 +748,8 @@ window.submitRestDay = async function(selectedDate = null) {
       status.textContent = 'This day is already chosen, so you can\'t rest on the same day. Choose another day.';
     } else if (e.message === 'REST_DAY_HAS_RECORD') {
       status.textContent = 'There is already an attendance/excuse record for this day.';
+    } else if (e.message === 'REST_DAYS_DISABLED') {
+      status.textContent = 'Coach rest days are disabled for now.';
     } else {
       status.textContent = 'Failed to save rest day. Try again.';
     }

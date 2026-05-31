@@ -27,13 +27,13 @@ const CONFIG = {
   lateGraceMinutes: 5,
   monthlyLateForgivenessMinutes: 15,
   leaderboardBonus: 500,
+  coachRestDaysEnabled: false,
   currency: 'EGP',
 };
 
 // ─── USERS ───
 const USERS = [
   { id: 1, email: 'tomhesham2009@gmail.com',      password: 'car3boy2009',       name: 'Mohamed Hesham (H)',      sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/H.jpeg' },
-  { id: 2, email: 'ezzat@academy.com',            password: '1234',              name: 'Omar Ezzat',              sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Ezzat.jpeg' },
   { id: 3, email: 'mahmoud72500@gmail.com',       password: '7250',              name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Mahmoud.jpeg' },
   { id: 4, email: 'omarabdalkader1104@gmail.com', password: 'Zikoo1029&',        name: 'Omar Zakrie',             sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Omar.jpeg' },
   { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE',   name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Dan.jpeg' },
@@ -136,6 +136,9 @@ async function markAsExcused(userId, date, reason = 'Excused by admin', meta = {
 }
 
 async function requestCoachRestDay(userId, date) {
+  if (!CONFIG.coachRestDaysEnabled) {
+    throw new Error('REST_DAYS_DISABLED');
+  }
   const user = getUser(userId);
   const record = buildExcusedRecord(userId, date, 'Coach rest day', {
     restDay: true,

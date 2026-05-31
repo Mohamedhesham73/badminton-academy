@@ -175,7 +175,7 @@ function renderOverviewTab(container) {
   const restDays = attendance
     .filter(r => getMonthKey(r.date) === adminMonthKey && isCoachRestDay(r))
     .sort((a, b) => a.date.localeCompare(b.date));
-  const restDaysSummary = `
+  const restDaysSummary = CONFIG.coachRestDaysEnabled ? `
     <div class="coach-row fade-in" style="border-color:rgba(255,225,53,0.2);background:rgba(255,225,53,0.04);">
       <div style="font-size:14px;font-weight:800;color:var(--yellow);margin-bottom:10px;">Rest days this month</div>
       ${restDays.length > 0 ? `
@@ -185,7 +185,7 @@ function renderOverviewTab(container) {
             return `<span class="badge" style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);">${r.date.slice(5)} · ${u?.name || 'Coach'}</span>`;
           }).join('')}
         </div>` : `<div style="font-size:13px;color:var(--text-muted);">No coach rest days selected yet.</div>`}
-    </div>`;
+    </div>` : '';
   container.innerHTML = restDaysSummary + coaches.map(u => {
     const leaderboardItem = leaderboardById.get(u.id);
     const s = leaderboardItem?.s || calcMonthlySummaryWithAbsences(u.id, adminMonthKey);
@@ -226,7 +226,7 @@ function renderOverviewTab(container) {
           </div>` : ''}
         ${s.excusedRecords && s.excusedRecords.length > 0 ? `
           <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
-            ${s.excusedRecords.map(r => `<span style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);padding:3px 8px;border-radius:8px;font-size:11px;">${isCoachRestDay(r) ? 'Rest day' : 'Excused'} ${r.date.slice(5)} ${r.excusedReason ? '· ' + r.excusedReason : ''}</span>`).join('')}
+            ${s.excusedRecords.map(r => `<span style="background:rgba(255,225,53,0.15);color:var(--yellow);border:1px solid rgba(255,225,53,0.3);padding:3px 8px;border-radius:8px;font-size:11px;">${CONFIG.coachRestDaysEnabled && isCoachRestDay(r) ? 'Rest day' : 'Excused'} ${r.date.slice(5)} ${r.excusedReason ? '· ' + r.excusedReason : ''}</span>`).join('')}
           </div>` : ''}
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           ${s.records.sort((a,b) => b.date.localeCompare(a.date)).map(r => {
@@ -328,8 +328,8 @@ function renderLogTab(container) {
     const excusedRows = excusedRecords.map(r => {
       const u = getUser(r.userId);
       const restDay = isCoachRestDay(r);
-      const reason = restDay ? 'Coach monthly rest day' : (r.excusedReason || 'Excused by admin');
-      const badgeText = restDay ? 'Rest day' : 'Excused';
+      const reason = CONFIG.coachRestDaysEnabled && restDay ? 'Coach monthly rest day' : (r.excusedReason || 'Excused by admin');
+      const badgeText = CONFIG.coachRestDaysEnabled && restDay ? 'Rest day' : 'Excused';
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);background:rgba(255,225,53,0.04);">
           <div style="display:flex;align-items:center;gap:10px;">
@@ -786,7 +786,7 @@ function generateSalarySlip(userId) {
       if (isExcused(r)) {
         pdf.text('—', 60, y); pdf.text('—', 95, y);
         pdf.setTextColor(255, 180, 0);
-        pdf.text(isCoachRestDay(r) ? 'Rest day' : `Excused${r.excusedReason ? ' (' + r.excusedReason + ')' : ''}`, 130, y);
+        pdf.text(CONFIG.coachRestDaysEnabled && isCoachRestDay(r) ? 'Rest day' : `Excused${r.excusedReason ? ' (' + r.excusedReason + ')' : ''}`, 130, y);
         pdf.text('—', 195, y, { align: 'right' });
       } else {
         pdf.text(r.checkInTime, 60, y);
