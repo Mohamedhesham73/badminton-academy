@@ -69,9 +69,9 @@ body::before {
 
 /* ─── HEADER ─── */
 .header {
-  background: rgba(10, 22, 40, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(0,200,150,0.15);
+  background: linear-gradient(180deg, rgba(10,22,40,0.95), rgba(12,30,50,0.8));
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0,200,150,0.10);
   padding: 10px 20px;
   display: flex;
   align-items: center;
@@ -81,6 +81,7 @@ body::before {
   z-index: 100;
   flex-wrap: nowrap;
   gap: 8px;
+  transition: padding 0.18s ease, background 0.25s ease;
 }
 .header-logo {
   font-family: 'Bebas Neue', sans-serif;
@@ -98,6 +99,7 @@ body::before {
   border-radius: 8px;
   object-fit: cover;
   flex-shrink: 0;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
 }
 .header-logo span { color: var(--white); }
 .header-user {
@@ -129,11 +131,12 @@ body::before {
 
 /* ─── CARDS ─── */
 .card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.09);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius);
   padding: 20px;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 28px rgba(4,20,40,0.45);
 }
 .card-white {
   background: var(--white);
@@ -187,19 +190,20 @@ body::before {
   transition: all 0.18s ease;
   text-align: center;
   letter-spacing: 0.5px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.28);
 }
 .btn-green {
-  background: var(--green);
+  background: linear-gradient(90deg, var(--green), var(--green-dark));
   color: var(--navy);
 }
-.btn-green:hover { background: var(--green-dark); transform: translateY(-1px); }
-.btn-green:active { transform: scale(0.98); }
+.btn-green:hover { filter: brightness(1.03); transform: translateY(-2px); }
+.btn-green:active { transform: translateY(0); }
 
 .btn-disabled {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.06);
   color: var(--text-muted);
   cursor: not-allowed;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.06);
 }
 
 .btn-outline {
@@ -207,18 +211,18 @@ body::before {
   border: 1.5px solid var(--green);
   color: var(--green);
 }
-.btn-outline:hover { background: rgba(0,200,150,0.1); }
+.btn-outline:hover { background: rgba(0,200,150,0.06); }
 
 .btn-danger {
-  background: rgba(255,77,109,0.12);
+  background: linear-gradient(90deg, rgba(255,77,109,0.12), rgba(255,77,109,0.18));
   color: var(--red);
-  border: 1px solid rgba(255,77,109,0.25);
+  border: 1px solid rgba(255,77,109,0.18);
   font-size: 13px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   width: auto;
-  border-radius: 8px;
+  border-radius: 10px;
 }
-.btn-danger:hover { background: rgba(255,77,109,0.22); }
+.btn-danger:hover { filter: brightness(1.04); }
 
 .btn-sm {
   font-size: 13px;
@@ -253,18 +257,19 @@ body::before {
 .input-field {
   width: 100%;
   padding: 12px 16px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-sm);
   color: var(--white);
   font-family: 'Nunito', sans-serif;
   font-size: 15px;
-  transition: border 0.2s;
+  transition: box-shadow 0.18s ease, border 0.18s ease, background 0.18s;
 }
 .input-field:focus {
   outline: none;
   border-color: var(--green);
-  background: rgba(0,200,150,0.06);
+  background: rgba(0,200,150,0.04);
+  box-shadow: 0 6px 16px rgba(0,200,150,0.08) inset;
 }
 .input-field::placeholder { color: var(--text-muted); }
 
@@ -394,14 +399,14 @@ body::before {
   position: relative;
   isolation: isolate;
   background:
-    linear-gradient(180deg, rgba(10,22,40,0.78), rgba(10,22,40,0.94)),
+    linear-gradient(180deg, rgba(7,18,32,0.86), rgba(12,24,44,0.94)),
     url('../imgs/cover.png') center / cover no-repeat;
 }
 .login-page::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 20%, rgba(0,200,150,0.18), transparent 36%);
+  background: radial-gradient(circle at 50% 20%, rgba(0,200,150,0.12), transparent 36%);
   pointer-events: none;
   z-index: -1;
 }
@@ -415,9 +420,9 @@ body::before {
 .login-brand img {
   width: 108px;
   height: 108px;
-  border-radius: 24px;
+  border-radius: 20px;
   object-fit: cover;
-  box-shadow: 0 18px 44px rgba(0,0,0,0.28);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.32);
 }
 .login-logo {
   font-family: 'Bebas Neue', sans-serif;
@@ -427,23 +432,24 @@ body::before {
   text-align: center;
   line-height: 1;
   margin-bottom: 4px;
+  text-shadow: 0 6px 20px rgba(0,0,0,0.45);
 }
 .login-logo span { color: var(--white); }
 .login-sub {
   font-size: 13px;
   color: var(--text-muted);
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   letter-spacing: 1px;
 }
 .login-card {
-  background: rgba(10,22,40,0.72);
-  border: 1px solid rgba(0,200,150,0.18);
+  background: linear-gradient(180deg, rgba(8,18,30,0.9), rgba(10,22,36,0.8));
+  border: 1px solid rgba(0,200,150,0.12);
   border-radius: var(--radius);
-  padding: 28px 24px;
+  padding: 22px 20px;
   width: 100%;
-  max-width: 380px;
-  backdrop-filter: blur(12px);
+  max-width: 420px;
+  backdrop-filter: blur(10px);
 }
 .error-msg {
   background: rgba(255,77,109,0.12);
@@ -592,6 +598,42 @@ body::before {
   .header-user { font-size: 12px; gap: 8px; }
   .avatar { width: 32px; height: 32px; font-size: 12px; }
   .login-logo { font-size: 42px; }
+}
+
+/* Header center title styling (moved from inline) */
+.header-center {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 3px;
+  color: var(--white);
+  flex: 1;
+  text-align: center;
+}
+
+
+/* Broader mobile / small-screen UX improvements */
+@media (max-width: 720px) {
+  .stats-grid { grid-template-columns: 1fr; gap: 12px; margin: 12px; }
+  .admin-summary { grid-template-columns: 1fr 1fr; }
+  .stat-card .value { font-size: 22px; }
+  .checkin-clock { font-size: 36px; }
+  .page-content { padding: 12px 8px 28px; }
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 8px; padding: 6px; }
+  .tab { flex: 0 0 auto; min-width: 90px; padding: 8px 10px; font-size: 13px; }
+  .login-card { padding: 20px; max-width: 460px; width: calc(100% - 32px); }
+  .btn { padding: 14px 18px; font-size: 16px; border-radius: 12px; }
+  .input-field { padding: 14px 16px; font-size: 16px; }
+  .card { padding: 16px; border-radius: 12px; }
+  .shuttle-deco { font-size: 88px; opacity: 0.03; }
+  .login-logo { font-size: 46px; }
+}
+
+/* Tiny screens: further tighten and improve hit targets */
+@media (max-width: 360px) {
+  .header-logo img { width: 24px; height: 24px; }
+  .login-logo { font-size: 40px; }
+  .checkin-clock { font-size: 30px; }
+  .btn { padding: 12px 14px; font-size: 15px; }
 }
 
 /* ─── NEW FUN STYLES ─── */
