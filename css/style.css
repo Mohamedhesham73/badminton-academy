@@ -582,6 +582,18 @@ body::before {
   .admin-summary { grid-template-columns: 1fr 1fr; }
 }
 
+/* Mobile tweaks: hide redundant academy name (logo already contains it) and tighten header */
+@media (max-width: 480px) {
+  .login-sub { display: none; }
+  .header-title { display: none; }
+  .header { padding: 8px 12px; gap: 6px; }
+  .header-logo { font-size: 18px; min-width: 80px; }
+  .header-logo img { width: 26px; height: 26px; border-radius: 6px; }
+  .header-user { font-size: 12px; gap: 8px; }
+  .avatar { width: 32px; height: 32px; font-size: 12px; }
+  .login-logo { font-size: 42px; }
+}
+
 /* ─── NEW FUN STYLES ─── */
 @keyframes confettiFall {
   0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
