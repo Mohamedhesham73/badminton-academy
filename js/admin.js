@@ -94,12 +94,13 @@ function calcMonthlySummaryWithAbsences(userId, monthKey) {
   const earlyLeaveDeductions = realRecords.reduce((s, r) => s + (r.earlyLeaveDeduction || 0), 0);
 
   const presentDates = realRecords.map(r => r.date);
-  const absentDays = pastWorkingDays.filter(d => !presentDates.includes(d) && !excusedDates.includes(d)).length;
+  const absentDates = pastWorkingDays.filter(d => !presentDates.includes(d) && !excusedDates.includes(d));
+  const absentDays = absentDates.length;
   const absenceDeductions = absentDays * user.sessionRate;
 
   const totalDeductions = lateDeductions + earlyLeaveDeductions + absenceDeductions;
   const netSalary = baseSalary - totalDeductions;
-  return { daysPresent, baseSalary, totalDeductions, lateDeductions, rawLateDeductions: lateSummary.rawLateDeductions, lateDeductionsForgiven: lateSummary.lateDeductionsForgiven, totalLateMinutes: lateSummary.totalLateMinutes, earlyLeaveDeductions, absenceDeductions, absentDays, netSalary, records: realRecords, excusedRecords };
+  return { daysPresent, baseSalary, totalDeductions, lateDeductions, rawLateDeductions: lateSummary.rawLateDeductions, lateDeductionsForgiven: lateSummary.lateDeductionsForgiven, totalLateMinutes: lateSummary.totalLateMinutes, earlyLeaveDeductions, absenceDeductions, absentDays, absentDates, netSalary, records: realRecords, excusedRecords };
 }
 
 export function cleanupAdminPage() {
@@ -219,6 +220,10 @@ function renderOverviewTab(container) {
         ${s.lateDeductionsForgiven ? `
           <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
             <span style="background:rgba(0,200,150,0.12);color:var(--green);border:1px solid rgba(0,200,150,0.25);padding:3px 8px;border-radius:8px;font-size:11px;font-weight:800;">Late forgiven: ${s.totalLateMinutes}m / ${CONFIG.monthlyLateForgivenessMinutes}m</span>
+          </div>` : ''}
+        ${s.absentDates && s.absentDates.length > 0 ? `
+          <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
+            ${s.absentDates.map(date => `<span style="background:rgba(255,77,109,0.12);color:var(--red);border:1px solid rgba(255,77,109,0.25);padding:3px 8px;border-radius:8px;font-size:11px;">Absent ${date.slice(5)}</span>`).join('')}
           </div>` : ''}
         ${leaderboardBonus > 0 ? `
           <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px;">
@@ -773,7 +778,8 @@ function generateSalarySlip(userId) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
 
-  const allRecords = [...s.records, ...(s.excusedRecords || [])].sort((a,b) => a.date.localeCompare(b.date));
+  const absentRows = (s.absentDates || []).map(date => ({ date, absent: true }));
+  const allRecords = [...s.records, ...(s.excusedRecords || []), ...absentRows].sort((a,b) => a.date.localeCompare(b.date));
 
   if (allRecords.length === 0) {
     pdf.setTextColor(...grayRGB);
@@ -783,7 +789,13 @@ function generateSalarySlip(userId) {
       if (y > 280) { pdf.addPage(); y = 20; }
       pdf.setTextColor(...navyRGB);
       pdf.text(r.date, 15, y);
-      if (isExcused(r)) {
+      if (r.absent) {
+        pdf.text('—', 60, y);
+        pdf.text('—', 95, y);
+        pdf.setTextColor(...redRGB);
+        pdf.text('Absent', 130, y);
+        pdf.text(`- ${u.sessionRate.toFixed(1)} EGP`, 195, y, { align: 'right' });
+      } else if (isExcused(r)) {
         pdf.text('—', 60, y); pdf.text('—', 95, y);
         pdf.setTextColor(255, 180, 0);
         pdf.text(CONFIG.coachRestDaysEnabled && isCoachRestDay(r) ? 'Rest day' : `Excused${r.excusedReason ? ' (' + r.excusedReason + ')' : ''}`, 130, y);
@@ -799,7 +811,8 @@ function generateSalarySlip(userId) {
           pdf.setTextColor(...redRGB);
           pdf.text(`+${r.lateMinutes}m late${r.earlyLeaveMinutes > 0 ? ` / -${r.earlyLeaveMinutes}m early` : ''}`, 130, y);
         }
-        const totalDed = (r.lateDeduction || r.deduction || 0) + (r.earlyLeaveDeduction || 0);
+        const lateDed = s.lateDeductionsForgiven ? 0 : (r.lateDeduction || r.deduction || 0);
+        const totalDed = lateDed + (r.earlyLeaveDeduction || 0);
         pdf.setTextColor(totalDed > 0 ? redRGB[0] : greenRGB[0], totalDed > 0 ? redRGB[1] : greenRGB[1], totalDed > 0 ? redRGB[2] : greenRGB[2]);
         pdf.text(totalDed > 0 ? `-${totalDed.toFixed(1)} EGP` : '—', 195, y, { align: 'right' });
       }
