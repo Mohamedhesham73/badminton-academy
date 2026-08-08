@@ -34,11 +34,13 @@ const CONFIG = {
 // ─── USERS ───
 const USERS = [
   { id: 1, email: 'tomhesham2009@gmail.com',      password: 'car3boy2009',       name: 'Mohamed Hesham (H)',      sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/H.jpeg' },
-  { id: 3, email: 'mahmoud72500@gmail.com',       password: '7250',              name: 'Mahmoud Mohamed Hassan',  sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Mahmoud.jpeg' },
+  { id: 3, email: 'mahmoud72500@gmail.com',       password: '7250',              name: 'Mahmoud Mohamed Hassan',  sessionRate: 5500 / CONFIG.sessionsPerMonth, hourlyRate: 5500 / (CONFIG.sessionsPerMonth * 4), isAdmin: false, photo: 'imgs/Mahmoud.jpeg' },
   { id: 4, email: 'omarabdalkader1104@gmail.com', password: 'Zikoo1029&',        name: 'Omar Zakrie',             sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Omar.jpeg' },
   { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE',   name: 'Mohamed Ibrahem (Dan)',   sessionRate: 383.3,  hourlyRate: 95.83,  isAdmin: false, photo: 'imgs/Dan.jpeg' },
   { id: 6, email: 'aboal7amd@academy.com',        password: '1234',              name: 'Abo AL7amd',              sessionRate: 541.67, hourlyRate: 135.42, isAdmin: false, customStart: { 1: { h: 18, m: 0 }, 3: { h: 18, m: 0 }, 6: { h: 17, m: 0 } } },
   { id: 7, email: 'admin@academy.com',            password: 'admin123',          name: 'Mohamed Mostafa (Mido)',  sessionRate: 0,      hourlyRate: 0,      isAdmin: true,  photo: 'imgs/Mido.jpeg' },
+  // Add a `photo: 'imgs/3body.jpeg'` field here once his picture is available.
+  { id: 8, email: '3body@academy.com',             password: '1234',              name: '3body',                   sessionRate: 4600 / CONFIG.sessionsPerMonth, hourlyRate: 4600 / (CONFIG.sessionsPerMonth * 4), isAdmin: false },
 ];
 
 // ─── EGYPTIAN HOLIDAYS (suggested by app) ───
