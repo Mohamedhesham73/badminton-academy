@@ -99,6 +99,31 @@ async function updateAttendanceRecord(record) {
   } catch(e) { console.error('Error updating:', e); }
 }
 
+// Ensures a coach who started at the beginning of the current month has a full,
+// on-time record for each completed academy workday. Existing records are left intact.
+async function ensurePerfectAttendanceFromMonthStart(userId, monthKey = getCurrentMonthKey()) {
+  const user = getUser(userId);
+  if (!user || user.isAdmin) return;
+
+  const completedWorkdays = getPastWorkingDaysInMonth(monthKey);
+  const existingDates = new Set(getMonthAttendance(userId, monthKey).map(record => record.date));
+
+  for (const date of completedWorkdays) {
+    if (existingDates.has(date)) continue;
+    await updateAttendanceRecord({
+      userId,
+      date,
+      checkInTime: '05:00 PM',
+      checkOutTime: '09:00 PM',
+      lateMinutes: 0,
+      lateDeduction: 0,
+      deduction: 0,
+      earlyLeaveMinutes: 0,
+      earlyLeaveDeduction: 0
+    });
+  }
+}
+
 async function removeAttendance(userId, date) {
   try {
     const existing = attendance.find(a => a.userId === userId && a.date === date);
@@ -540,7 +565,7 @@ function restoreSession() {
 
 export {
   db, CONFIG, USERS, attendance, currentUser, holidays, SUGGESTED_HOLIDAYS,
-  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach, markAsExcused, requestCoachRestDay,
+  loadAttendance, saveAttendance, removeAttendance, listenToAttendance, addAttendance, checkOutCoach, markAsExcused, requestCoachRestDay, ensurePerfectAttendanceFromMonthStart,
   loadHolidays, saveHoliday, removeHoliday, listenToHolidays, isHoliday, getHoliday, expandHolidayRange,
   getUser, getUserByEmail, todayStr, isWorkDay, getCoachStartTime,
   isExcusedRecord, isCoachRestDay, getCoachRestDays, isRestDayTaken, getAvailableRestDays,
