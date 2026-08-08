@@ -1,9 +1,19 @@
-import { login, logout, restoreSession, loadAttendance, loadHolidays, listenToAttendance } from './data.js';
+import { login, logout, restoreSession, loadAttendance, loadHolidays, listenToAttendance, ensurePerfectAttendanceFromMonthStart } from './data.js';
 import { renderCoachPage, cleanupCoachPage } from './coach.js';
 import { renderAdminPage, cleanupAdminPage } from './admin.js';
 import { initNotifications } from './notifications.js';
 
 let attendanceUnsubscribe = null;
+
+async function loadInitialData() {
+  try {
+    await Promise.race([
+      Promise.all([loadAttendance(), loadHolidays()]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+    ]);
+    await ensurePerfectAttendanceFromMonthStart(8);
+  } catch (e) {}
+}
 
 // ─── APP ROUTER ───
 function showPage(id) {
@@ -39,12 +49,7 @@ window.doLogin = async function() {
   const btn = document.querySelector('#page-login .btn-green');
   if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
 
-  try {
-    await Promise.race([
-      Promise.all([loadAttendance(), loadHolidays()]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-    ]);
-  } catch(e) {}
+  await loadInitialData();
 
   if (btn) { btn.textContent = 'Sign In →'; btn.disabled = false; }
   launchShuttle();
@@ -89,10 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const user = restoreSession();
   if (user) {
-    await Promise.race([
-      Promise.all([loadAttendance(), loadHolidays()]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-    ]).catch(() => {});
+    await loadInitialData();
 
     if (user.isAdmin) {
       showPage('page-admin');
