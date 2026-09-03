@@ -1,4 +1,4 @@
-import { login, logout, restoreSession, loadAttendance, loadHolidays, listenToAttendance, ensurePerfectAttendanceFromMonthStart } from './data.js';
+import { login, logout, restoreSession, loadAttendance, loadHolidays, listenToAttendance, ensurePerfectAttendanceFromMonthStart, refreshCurrentMonthDeductions } from './data.js';
 import { renderCoachPage, cleanupCoachPage } from './coach.js';
 import { renderAdminPage, cleanupAdminPage } from './admin.js';
 import { initNotifications } from './notifications.js';
@@ -12,6 +12,7 @@ async function loadInitialData() {
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]);
     await ensurePerfectAttendanceFromMonthStart(8);
+    await refreshCurrentMonthDeductions();
   } catch (e) {}
 }
 
