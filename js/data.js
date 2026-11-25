@@ -33,6 +33,7 @@ const CONFIG = {
 
 // ─── USERS ───
 const USERS = [
+  { id: 1, email: 'tomhesham2009@gmail.com',      password: 'car3boy2009',       name: 'Mohamed Hesham (H)',      sessionRate: 6000 / CONFIG.sessionsPerMonth, hourlyRate: 6000 / (CONFIG.sessionsPerMonth * 4), isAdmin: false, photo: 'imgs/H.jpeg' },
   { id: 3, email: 'mahmoud72500@gmail.com',       password: '7250',              name: 'Mahmoud Mohamed Hassan',  sessionRate: 5400 / CONFIG.sessionsPerMonth, hourlyRate: 5400 / (CONFIG.sessionsPerMonth * 4), isAdmin: false, photo: 'imgs/Mahmoud.jpeg' },
   { id: 4, email: 'omarabdalkader1104@gmail.com', password: 'Zikoo1029&',        name: 'Omar Zakrie',             sessionRate: 5400 / CONFIG.sessionsPerMonth, hourlyRate: 5400 / (CONFIG.sessionsPerMonth * 4), isAdmin: false, photo: 'imgs/Omar.jpeg' },
   { id: 5, email: 'sorormohamedibrahim@gmail.com',password: 'cU@AtQSAn86GDAE',   name: 'Mohamed Ibrahem (Dan)',   sessionRate: 5400 / CONFIG.sessionsPerMonth, hourlyRate: 5400 / (CONFIG.sessionsPerMonth * 4), isAdmin: false, photo: 'imgs/Dan.jpeg' },
